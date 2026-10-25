@@ -1,0 +1,19 @@
+# Archives and local artifacts
+*.zip
+.DS_Store
+__MACOSX/
+
+# LaTeX build files
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.synctex.gz
+report/*.fdb_latexmk
+report/*.fls
+
+# Training outputs
+outputs/
+grpo_saved_lora/
+wandb/
