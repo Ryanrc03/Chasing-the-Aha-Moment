@@ -1,0 +1,14 @@
+# Same as qwen2.5-3b_3060.yaml plus the length-based reward shaping
+# ("GRPO + reward shaping" column in the report).
+_base_: qwen2.5-3b_3060.yaml
+run_name: qwen3b_shaped
+
+reward:
+  length:
+    enabled: true
+    alpha: 0.5
+    beta: 0.1
+    l_max: 512
+
+train:
+  output_dir: outputs/qwen3b_shaped

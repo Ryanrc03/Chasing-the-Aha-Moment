@@ -1,0 +1,9 @@
+# Family-consistent alternative to the Qwen run: Llama-3.2-3B-Instruct on the RTX 3060.
+_base_: qwen2.5-3b_3060.yaml
+run_name: llama3b_base
+
+model:
+  name: unsloth/Llama-3.2-3B-Instruct
+
+train:
+  output_dir: outputs/llama3b_base

@@ -17,3 +17,10 @@ report/*.fls
 outputs/
 grpo_saved_lora/
 wandb/
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+results/

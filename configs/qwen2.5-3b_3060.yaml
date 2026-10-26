@@ -1,0 +1,20 @@
+# Primary local target: Qwen2.5-3B-Instruct on an RTX 3060 12 GB (WSL2).
+# Base reward only ("GRPO (base reward)" column in the report).
+_base_: base.yaml
+run_name: qwen3b_base
+
+model:
+  name: unsloth/Qwen2.5-3B-Instruct
+  gpu_memory_utilization: 0.55
+
+reward:
+  match: relaxed                # "$18" == "18"; cleaner signal than exact string match
+
+train:
+  output_dir: outputs/qwen3b_base
+  num_generations: 6            # drop to 4 if OOM; raise to 8 if memory allows
+  max_steps: 500                # 3B is ~2x faster per step than 8B on T4; afford more steps
+  save_steps: 100
+
+eval:
+  datasets: [gsm8k_test, aime2024, aime2025]

@@ -1,0 +1,69 @@
+# Shared defaults. Every other config inherits from this via `_base_`.
+# Hyper-parameters follow the report's Table 1 (GRPO on GSM8K) unless overridden.
+run_name: base
+
+model:
+  name: unsloth/Qwen2.5-3B-Instruct
+  max_seq_length: 1024
+  load_in_4bit: true
+  fast_inference: true          # vLLM co-located with the trainer
+  gpu_memory_utilization: 0.55  # vLLM share; raise on a 15 GB T4, lower if OOM
+  lora_rank: 32
+  lora_alpha: null              # defaults to lora_rank
+  lora_target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  gradient_checkpointing: unsloth
+
+data:
+  train_dataset: gsm8k          # gsm8k | math
+  train_split: train
+  max_train_samples: null
+  shuffle_seed: null
+
+reward:
+  correctness_weight: 2.0
+  int_weight: 0.5
+  strict_format_weight: 0.5
+  soft_format_weight: 0.5
+  xmlcount_weight: 1.0
+  match: exact                  # exact (notebooks) | relaxed (numeric normalisation)
+  log_samples: true
+  length:                       # R_len from the report; off = "GRPO (base reward)"
+    enabled: false
+    alpha: 0.5
+    beta: 0.1
+    l_max: 512
+
+train:
+  output_dir: outputs/base
+  learning_rate: 5.0e-6
+  adam_beta1: 0.9
+  adam_beta2: 0.99
+  weight_decay: 0.1
+  warmup_ratio: 0.1
+  lr_scheduler_type: cosine
+  optim: paged_adamw_8bit
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  num_generations: 6
+  max_prompt_length: 256
+  max_completion_length: null   # defaults to max_seq_length - max_prompt_length
+  max_steps: 250
+  save_steps: 250
+  logging_steps: 1
+  max_grad_norm: 0.1
+  kl_beta: null                 # TRL default
+  seed: 3407
+  report_to: none
+
+eval:
+  datasets: [gsm8k_test]
+  lora_path: null               # null = untouched instruct model (or this run's adapter if it exists)
+  max_samples: null
+  batch_size: 8
+  temperature: 0.2
+  top_p: 0.95
+  max_tokens: 512
+  seed: 3407
+  results_dir: results
+  match: relaxed
+  num_examples_to_keep: 5

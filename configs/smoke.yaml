@@ -1,0 +1,17 @@
+# Two-step smoke test: verifies the whole train -> save -> eval path on the GPU in minutes.
+_base_: qwen2.5-3b_3060.yaml
+run_name: smoke
+
+data:
+  max_train_samples: 64
+
+train:
+  output_dir: outputs/smoke
+  max_steps: 2
+  save_steps: 2
+  num_generations: 4
+
+eval:
+  datasets: [gsm8k_test]
+  max_samples: 16
+  batch_size: 8

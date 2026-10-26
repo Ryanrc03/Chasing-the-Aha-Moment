@@ -1,0 +1,20 @@
+# Faithful reproduction of the original Colab run (Llama-3.1-8B-Instruct, T4 15 GB).
+# Needs ~13 GB: does NOT fit a 12 GB RTX 3060 without lowering gpu_memory_utilization,
+# max_seq_length or num_generations (and then it is slow).
+_base_: base.yaml
+run_name: llama8b_t4
+
+model:
+  name: unsloth/meta-Llama-3.1-8B-Instruct
+  gpu_memory_utilization: 0.9
+
+reward:
+  match: exact
+
+train:
+  output_dir: outputs/llama8b_t4
+  max_steps: 250
+  save_steps: 250
+
+eval:
+  datasets: [gsm8k_test, aime2024, aime2025]
