@@ -6,14 +6,17 @@ run_name: qwen3b_base
 model:
   name: unsloth/Qwen2.5-3B-Instruct
   gpu_memory_utilization: 0.55
+  # Standard checkpointing instead of Unsloth's CPU-offload variant: under WSL2 (no pinned
+  # memory) the offload costs ~35% per step (26 s -> 17 s measured, 6 steps, 4 generations).
+  gradient_checkpointing: true
 
 reward:
   match: relaxed                # "$18" == "18"; cleaner signal than exact string match
 
 train:
   output_dir: outputs/qwen3b_base
-  num_generations: 6            # drop to 4 if OOM; raise to 8 if memory allows
-  max_steps: 500                # 3B is ~2x faster per step than 8B on T4; afford more steps
+  num_generations: 6            # decode is batch-parallel: 4 -> 8 generations costs ~1 s/step
+  max_steps: 500                # ~17-21 s/step measured on the 3060 -> ~2.5-3 h
   save_steps: 100
 
 eval:

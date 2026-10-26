@@ -91,8 +91,9 @@ pip install -e ".[dev]" && pytest
   256/768 prompt/completion tokens).
 - Unsloth + vLLM require Linux (WSL2 on Windows). Pinned versions: `vllm==0.10.2`,
   `transformers==4.56.2`, `trl==0.22.2`. Verified on the 3060 under WSL2 with Unsloth 2026.10.8,
-  torch 2.8.0+cu128: `configs/smoke.yaml` trains 2 steps in ~70 s (about 34 s per step with
-  4 generations) and the model download is 2.3 GB.
+  torch 2.8.0+cu128: the 3B configs run at about 17-21 s per step with 6 generations (standard gradient
+  checkpointing; Unsloth's CPU-offload variant is ~35% slower under WSL2), so 500 steps take
+  roughly 2.5-3 hours. The model download is 2.3 GB.
 - vLLM standby mode is off by default (`UNSLOTH_VLLM_STANDBY=0`): current Unsloth refuses it on
   vLLM 0.10.x. Upgrade to `vllm>=0.11.2` before turning it on.
 

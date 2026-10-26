@@ -71,7 +71,10 @@ OOM 时按顺序调整：`train.num_generations: 4` → `model.gpu_memory_utiliz
 
 - Unsloth 自动把 `unsloth/Qwen2.5-3B-Instruct` 解析为 `unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit`，下载 2.3 GB，43 s 下完。
 - vLLM 实际占用：权重 2.35 GB，KV cache 3.44 GB（`gpu_memory_utilization=0.55` 被 Unsloth 折算成 0.50，约 6 GB）。
-- 2 步训练（4 个采样 / 步，完成长度 ≤768）用时 69 s，约 34 s/步；正式配置 6 个采样估计 40–50 s/步，500 步约 6–7 小时。比上面的粗估慢，主要是 WSL 下 `pin_memory=False` 和 3060 本身算力有限。
+- 2 步训练（4 个采样 / 步，完成长度 ≤768）用时 69 s，约 34 s/步，其中第 1 步含编译预热。
+- **速度拆解（6 步基准，2026-10-25）**：采样只占每步约 9 s，4-bit 和 16-bit 一样快（decode 受显存带宽限制），4 条加到 8 条采样几乎不加时间。大头是训练那一半。
+  把 `gradient_checkpointing` 从 `unsloth`（激活 offload 到 CPU）换成标准 `true`，每步从 26 s 降到 17 s（4 条采样）；6 条采样约 17–21 s/步，取决于采样长度。**500 步约 2.5–3 小时**，250 步约 1.2–1.5 小时。
+  16-bit 加载权重 5.9 GB、采样峰值 8.35 GB，再叠训练会爆 12 GB，而且不比 4-bit 快，不采用。
 - vLLM standby 模式（`UNSLOTH_VLLM_STANDBY=1`）在当前 Unsloth（2026.10.x）+ 固定的 vllm 0.10.2 上会被直接拒绝，脚本默认已关闭。如果显存吃紧，升级到 `vllm>=0.11.2` 再开。
 
 ## 环境注意事项
