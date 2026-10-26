@@ -6,6 +6,7 @@ from pathlib import Path
 
 from aha.config import ExperimentConfig, dump_config
 from aha.data import load_train_dataset
+from aha.logging_utils import make_jsonl_callback, save_log_history
 from aha.model import load_model_and_tokenizer
 from aha.rewards import build_reward_funcs
 
@@ -64,8 +65,10 @@ def train(cfg: ExperimentConfig) -> str:
         reward_funcs=reward_funcs,
         args=build_grpo_config(cfg),
         train_dataset=dataset,
+        callbacks=[make_jsonl_callback(out_dir)],
     )
     trainer.train(resume_from_checkpoint=cfg.train.resume_from_checkpoint)
+    save_log_history(trainer, out_dir)
 
     lora_dir = cfg.lora_save_dir
     model.save_lora(lora_dir)

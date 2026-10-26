@@ -90,6 +90,29 @@ class TrainConfig:
 
 
 @dataclass
+class SFTTrainConfig:
+    """Supervised fine-tuning baseline on gold GSM8K solutions rewritten in the XML format."""
+
+    output_dir: str = "outputs/sft"
+    lora_save_dir: Optional[str] = None  # defaults to <output_dir>/lora
+    learning_rate: float = 2e-4  # usual QLoRA SFT rate; GRPO uses 5e-6
+    num_train_epochs: float = 1.0
+    max_steps: int = -1  # >0 overrides num_train_epochs
+    per_device_train_batch_size: int = 4
+    gradient_accumulation_steps: int = 4
+    max_length: int = 1024
+    warmup_ratio: float = 0.05
+    lr_scheduler_type: str = "cosine"
+    optim: str = "adamw_8bit"
+    weight_decay: float = 0.01
+    logging_steps: int = 10
+    save_steps: int = 0  # 0 = only save the adapter at the end
+    seed: int = 3407
+    report_to: str = "none"
+    completion_only_loss: bool = True  # loss on the assistant turn only
+
+
+@dataclass
 class EvalConfig:
     datasets: list[str] = field(default_factory=lambda: ["gsm8k_test"])
     lora_path: Optional[str] = None  # None evaluates the untouched instruct model
@@ -111,9 +134,14 @@ class ExperimentConfig:
     data: DataConfig = field(default_factory=DataConfig)
     reward: RewardConfig = field(default_factory=RewardConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
+    sft: SFTTrainConfig = field(default_factory=SFTTrainConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
 
     # --- derived values -------------------------------------------------
+    @property
+    def sft_lora_save_dir(self) -> str:
+        return self.sft.lora_save_dir or str(Path(self.sft.output_dir) / "lora")
+
     @property
     def lora_alpha(self) -> int:
         if self.model.lora_alpha is not None:
@@ -213,6 +241,7 @@ _NESTED = {
     "data": DataConfig,
     "reward": RewardConfig,
     "train": TrainConfig,
+    "sft": SFTTrainConfig,
     "eval": EvalConfig,
     "length": LengthRewardConfig,
 }

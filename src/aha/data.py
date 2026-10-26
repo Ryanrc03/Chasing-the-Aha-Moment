@@ -7,11 +7,12 @@ which is what TRL's GRPOTrainer expects. Evaluation sets return a list of
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
 from aha.parsing import extract_hash_answer
-from aha.prompts import SYSTEM_PROMPT, build_chat
+from aha.prompts import SYSTEM_PROMPT, XML_COT_FORMAT, build_chat
 
 
 @dataclass
@@ -32,6 +33,46 @@ def format_gsm8k_row(row: dict, system_prompt: str = SYSTEM_PROMPT) -> dict:
         "prompt": build_chat(row["question"], system_prompt),
         "answer": extract_hash_answer(row["answer"]),
     }
+
+
+_CALC_ANNOTATION = re.compile(r"<<[^<>]*>>")
+
+
+def gsm8k_solution_to_xml(answer_field: str) -> Optional[str]:
+    """Rewrite a GSM8K gold solution into the XML_COT_FORMAT used for GRPO.
+
+    GSM8K solutions look like ``"48/2 = <<48/2=24>>24 clips ...\\n#### 72"``. The
+    calculator annotations are stripped and the final line becomes the <answer>.
+    Returns None when the ``####`` marker is missing.
+    """
+    if "####" not in answer_field:
+        return None
+    reasoning, final = answer_field.split("####", 1)
+    reasoning = _CALC_ANNOTATION.sub("", reasoning).strip()
+    return XML_COT_FORMAT.format(reasoning=reasoning, answer=final.strip())
+
+
+def format_gsm8k_sft_row(row: dict, system_prompt: str = SYSTEM_PROMPT) -> dict:
+    """Prompt/completion pair for TRL's SFTTrainer (loss on the completion only)."""
+    target = gsm8k_solution_to_xml(row["answer"])
+    return {
+        "prompt": build_chat(row["question"], system_prompt),
+        "completion": [{"role": "assistant", "content": target}] if target else None,
+    }
+
+
+def load_gsm8k_sft(split: str = "train", max_samples: Optional[int] = None,
+                   shuffle_seed: Optional[int] = None, system_prompt: str = SYSTEM_PROMPT):
+    from datasets import load_dataset
+
+    data = load_dataset("openai/gsm8k", "main")[split]
+    data = data.map(lambda x: format_gsm8k_sft_row(x, system_prompt), remove_columns=data.column_names)
+    data = data.filter(lambda x: x["completion"] is not None)
+    if shuffle_seed is not None:
+        data = data.shuffle(seed=shuffle_seed)
+    if max_samples is not None:
+        data = data.select(range(min(max_samples, len(data))))
+    return data
 
 
 def format_math_row(row: dict, system_prompt: str = SYSTEM_PROMPT) -> dict:

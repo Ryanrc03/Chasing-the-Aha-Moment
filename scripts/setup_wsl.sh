@@ -30,7 +30,7 @@ source "$VENV_DIR/bin/activate"
 
 echo ">> installing training stack"
 uv pip install --upgrade pip
-uv pip install unsloth vllm==0.10.2 bitsandbytes xformers datasets tqdm pyyaml pytest
+uv pip install unsloth vllm==0.10.2 bitsandbytes xformers datasets tqdm pyyaml pytest matplotlib
 uv pip install transformers==4.56.2
 uv pip install --no-deps trl==0.22.2
 uv pip install -e .

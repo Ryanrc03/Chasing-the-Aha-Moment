@@ -19,8 +19,9 @@ train = [
     "datasets",
     "bitsandbytes",
     "tqdm",
+    "matplotlib",
 ]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "matplotlib>=3.8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
