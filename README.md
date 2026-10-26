@@ -36,8 +36,12 @@ See the report for details.
 │   ├── train.py             #   TRL GRPOTrainer wiring
 │   └── evaluate.py          #   batched vLLM eval -> metrics.json / predictions.jsonl
 ├── scripts/
-│   ├── train.py             # python scripts/train.py --config configs/<name>.yaml [--set k=v ...]
-│   ├── eval.py              # python scripts/eval.py  --config configs/<name>.yaml [--set k=v ...]
+│   ├── train.py             # GRPO:  python scripts/train.py --config configs/<name>.yaml [--set k=v ...]
+│   ├── sft.py               # SFT baseline on gold GSM8K solutions (same model + LoRA)
+│   ├── eval.py              # python scripts/eval.py --config configs/<name>.yaml [--no-lora] [--set k=v ...]
+│   ├── plot_curves.py       # loss / reward / completion-length ... figures (PNG + PDF) from a run dir
+│   ├── compare_results.py   # Markdown table over results/<run>/<dataset>/metrics.json
+│   ├── run_comparison.sh    # SFT -> GRPO -> eval instruct/SFT/GRPO, end to end
 │   ├── check_env.py         # GPU + package versions
 │   └── setup_wsl.sh         # one-shot venv + pinned install for WSL2 / Linux
 ├── configs/
@@ -45,6 +49,7 @@ See the report for details.
 │   ├── qwen2.5-3b_3060.yaml         # RTX 3060 12 GB, base reward
 │   ├── qwen2.5-3b_3060_shaped.yaml  # RTX 3060 12 GB, + length reward shaping
 │   ├── llama3.2-3b_3060.yaml        # same-family 3B alternative
+│   ├── qwen2.5-3b_3060_sft.yaml     # SFT baseline for the GRPO-vs-SFT comparison
 │   ├── llama3.1-8b_t4.yaml          # original Colab/T4 run
 │   └── smoke.yaml                   # 2-step end-to-end check
 ├── tests/                   # CPU-only unit tests (pytest)
@@ -73,6 +78,18 @@ python scripts/eval.py --config configs/qwen2.5-3b_3060.yaml \
 
 Any config key can be overridden on the command line with `--set section.key=value`
 (values are parsed as YAML). Results land in `results/<run_name>/<dataset>/`.
+
+### GRPO vs SFT comparison and training curves
+
+```bash
+nohup bash scripts/run_comparison.sh > logs/comparison.log 2>&1 &   # SFT (~0.5 h) + GRPO (~3 h) + 3 evals (~2 h)
+python scripts/compare_results.py qwen3b_instruct qwen3b_sft qwen3b_base
+python scripts/plot_curves.py outputs/qwen3b_base outputs/qwen3b_sft --out report/img/curves
+```
+
+Every run writes `train_log.jsonl` (live, one line per logging step) and `log_history.json`
+(at the end) into its `output_dir`; the plot script renders total reward, reward components,
+loss, completion length, KL, reward std and more as PNG + PDF for the report.
 
 Unit tests run anywhere, no GPU or model download:
 

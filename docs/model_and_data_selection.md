@@ -90,6 +90,22 @@ OOM 时按顺序调整：`train.num_generations: 4` → `model.gpu_memory_utiliz
 3. 安装：`bash scripts/setup_wsl.sh`，然后 `python scripts/check_env.py` 确认 torch 能看到 GPU。
 4. 先跑 `configs/smoke.yaml`（2 步 + 16 条评测）验证完整链路，再跑正式实验。
 
+## GRPO vs SFT 对照（2026-10-25 启动）
+
+| 项 | SFT 基线 | GRPO |
+|---|---|---|
+| 配置 | `configs/qwen2.5-3b_3060_sft.yaml` | `configs/qwen2.5-3b_3060.yaml` |
+| 数据 | GSM8K train 7,473 条，金标解答去掉 `<<计算器标注>>` 后改写成 `<reasoning>/<answer>` 格式 | GSM8K train 的题目，只用最终答案做奖励 |
+| 损失 | 只在 assistant 回复上算交叉熵 | GRPO，5 个基础奖励 |
+| LoRA | r=32，同样 7 个投影 | 同 |
+| 学习率 | 2e-4（QLoRA SFT 常用值） | 5e-6 |
+| 预算 | 1 epoch，有效 batch 16，约 467 步，约 31 分钟 | 500 步 × 6 采样，约 2.5–3 小时 |
+| 评测 | GSM8K test 全量 + AIME 2024/2025，三方对照还包括未训练的 Instruct 模型 | 同 |
+
+SFT 10 步冒烟：loss 0.94 → 0.34；评测格式合规 100%，回答变得很短（平均 101 token，GSM8K 金标风格）。
+曲线数据：每个 run 的 `output_dir/train_log.jsonl`（实时）和 `log_history.json`（结束后），
+`scripts/plot_curves.py` 出图，`scripts/compare_results.py` 出表。
+
 ## 建议的实验顺序
 
 1. `smoke.yaml` 跑通。
