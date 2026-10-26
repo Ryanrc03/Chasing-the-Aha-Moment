@@ -99,9 +99,9 @@ pip install -e ".[dev]" && pytest
 
 ## Results on the 3060 (2026-10-26)
 
-| GSM8K test accuracy | Instruct | SFT (1 epoch) | GRPO 500 steps | GRPO best checkpoint (step 200, 300-problem subset) |
+| GSM8K test accuracy (1,319) | Instruct | SFT (1 epoch) | GRPO 500 steps | GRPO step-200 checkpoint |
 |---|---|---|---|---|
-| Qwen2.5-3B-Instruct, 4-bit + LoRA | 0.621 | 0.676 | 0.569 | 0.760 |
+| Qwen2.5-3B-Instruct, 4-bit + LoRA | 0.621 | 0.676 | 0.569 | **0.745** |
 
 The 500-step GRPO run reward-hacks: format rewards rise while correctness falls and completions
 shrink to ~80 tokens. Analysis, causes, fixes (`configs/qwen2.5-3b_3060_fixed.yaml`) and the GPU
