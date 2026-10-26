@@ -99,13 +99,14 @@ pip install -e ".[dev]" && pytest
 
 ## Results on the 3060 (2026-10-26)
 
-| GSM8K test accuracy (1,319) | Instruct | SFT (1 epoch) | GRPO 500 steps | GRPO step-200 checkpoint |
-|---|---|---|---|---|
-| Qwen2.5-3B-Instruct, 4-bit + LoRA | 0.621 | 0.676 | 0.569 | **0.745** |
+| GSM8K test accuracy (1,319) | Instruct | SFT (1 epoch) | GRPO base reward, 500 steps | GRPO base, best ckpt (200) | GRPO fixed config, 500 steps |
+|---|---|---|---|---|---|
+| Qwen2.5-3B-Instruct, 4-bit + LoRA | 0.621 | 0.676 | 0.569 | 0.745 | **0.773** |
 
-The 500-step GRPO run reward-hacks: format rewards rise while correctness falls and completions
-shrink to ~80 tokens. Analysis, causes, fixes (`configs/qwen2.5-3b_3060_fixed.yaml`) and the GPU
-bottleneck profile are in [docs/results_2026-10-26_grpo_vs_sft.md](docs/results_2026-10-26_grpo_vs_sft.md) (中文).
+The base-reward GRPO run reward-hacks: format rewards rise while correctness falls and completions
+shrink to ~80 tokens. `configs/qwen2.5-3b_3060_fixed.yaml` (KL beta 0.04, Dr. GRPO loss, format
+rewards halved and gated on a non-empty reasoning block, fixed strict regex) removes the collapse and
+plateaus at 75-77% from step 250 on. Analysis, causes, fixes and the GPU bottleneck profile are in [docs/results_2026-10-26_grpo_vs_sft.md](docs/results_2026-10-26_grpo_vs_sft.md) (中文).
 
 ## Hardware notes
 
