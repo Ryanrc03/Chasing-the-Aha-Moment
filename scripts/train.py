@@ -12,7 +12,10 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("UNSLOTH_VLLM_STANDBY", "1")  # frees vLLM memory while training
+# vLLM standby mode (frees vLLM memory between generation phases) is refused by current
+# Unsloth releases on the pinned vllm 0.10.2 (std::bad_alloc); enable it only on vllm>=0.11.2:
+#   UNSLOTH_VLLM_STANDBY=1 python scripts/train.py ...
+os.environ.setdefault("UNSLOTH_VLLM_STANDBY", "0")
 
 try:
     import unsloth  # noqa: F401  (must precede transformers/trl imports)

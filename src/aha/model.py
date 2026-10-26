@@ -12,9 +12,10 @@ from aha.config import ExperimentConfig
 def load_model_and_tokenizer(cfg: ExperimentConfig, with_lora: bool = True):
     """Return ``(model, tokenizer)`` configured per ``cfg.model``.
 
-    With ``with_lora=True`` a fresh LoRA adapter is attached (training). For
-    evaluation pass ``with_lora=False`` and load a saved adapter through
-    ``model.load_lora(path)`` at generation time.
+    ``with_lora=True`` attaches a fresh LoRA adapter. Unsloth adds ``save_lora`` /
+    ``load_lora`` (vLLM adapter loading) only on that PEFT wrapper, so evaluation
+    also uses ``with_lora=True`` and then ``model.load_lora(path)`` for a saved
+    adapter, or ``lora_request=None`` for the untouched base model.
     """
     from unsloth import FastLanguageModel
 

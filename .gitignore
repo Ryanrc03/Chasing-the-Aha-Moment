@@ -24,3 +24,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 results/
+
+# Unsloth / TRL side effects
+unsloth_compiled_cache/
+grpo_trainer_lora_model/

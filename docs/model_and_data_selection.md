@@ -63,9 +63,16 @@ GSM8K 数字来自各模型官方发布（零样本或 8-shot CoT，不同家族
 | 合计 | ~11–12 GB，接近上限 |
 
 OOM 时按顺序调整：`train.num_generations: 4` → `model.gpu_memory_utilization: 0.5` → `model.max_seq_length: 768`。
-`UNSLOTH_VLLM_STANDBY=1`（脚本已默认设置）会让 vLLM 在训练阶段释放部分显存。
+`UNSLOTH_VLLM_STANDBY=1` 可以让 vLLM 在训练阶段释放显存，但需要 `vllm>=0.11.2`（见下）。
 
-速度估计（粗略）：3B 每步 15–25 s（6 条 ≤768 token 的采样），500 步约 2–3.5 小时；GSM8K test 全量评测约 20–30 分钟。
+速度：见下面的冒烟实测，3B 在 3060 + WSL 上约 34 s/步（4 个采样）。
+
+## 冒烟测试实测（2026-10-25，`configs/smoke.yaml`）
+
+- Unsloth 自动把 `unsloth/Qwen2.5-3B-Instruct` 解析为 `unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit`，下载 2.3 GB，43 s 下完。
+- vLLM 实际占用：权重 2.35 GB，KV cache 3.44 GB（`gpu_memory_utilization=0.55` 被 Unsloth 折算成 0.50，约 6 GB）。
+- 2 步训练（4 个采样 / 步，完成长度 ≤768）用时 69 s，约 34 s/步；正式配置 6 个采样估计 40–50 s/步，500 步约 6–7 小时。比上面的粗估慢，主要是 WSL 下 `pin_memory=False` 和 3060 本身算力有限。
+- vLLM standby 模式（`UNSLOTH_VLLM_STANDBY=1`）在当前 Unsloth（2026.10.x）+ 固定的 vllm 0.10.2 上会被直接拒绝，脚本默认已关闭。如果显存吃紧，升级到 `vllm>=0.11.2` 再开。
 
 ## 环境注意事项
 

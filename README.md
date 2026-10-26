@@ -58,7 +58,7 @@ See the report for details.
 
 ```bash
 bash scripts/setup_wsl.sh          # creates .venv, installs unsloth / vllm / trl (pinned)
-source .venv/bin/activate
+source ~/.venvs/aha/bin/activate
 python scripts/check_env.py
 
 python scripts/train.py --config configs/smoke.yaml           # 2 steps, verifies the pipeline
@@ -90,7 +90,11 @@ pip install -e ".[dev]" && pytest
   (`unsloth/meta-Llama-3.1-8B-Instruct`, 4-bit, rank-32 LoRA, 250 steps, 6 generations,
   256/768 prompt/completion tokens).
 - Unsloth + vLLM require Linux (WSL2 on Windows). Pinned versions: `vllm==0.10.2`,
-  `transformers==4.56.2`, `trl==0.22.2`.
+  `transformers==4.56.2`, `trl==0.22.2`. Verified on the 3060 under WSL2 with Unsloth 2026.10.8,
+  torch 2.8.0+cu128: `configs/smoke.yaml` trains 2 steps in ~70 s (about 34 s per step with
+  4 generations) and the model download is 2.3 GB.
+- vLLM standby mode is off by default (`UNSLOTH_VLLM_STANDBY=0`): current Unsloth refuses it on
+  vLLM 0.10.x. Upgrade to `vllm>=0.11.2` before turning it on.
 
 ## Building the report
 

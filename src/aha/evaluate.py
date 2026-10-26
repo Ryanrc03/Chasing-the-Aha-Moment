@@ -144,7 +144,9 @@ def evaluate(cfg: ExperimentConfig) -> dict[str, Metrics]:
     """Evaluate the base model (or base + LoRA if ``cfg.eval.lora_path``) on every eval set."""
     from aha.model import load_model_and_tokenizer
 
-    model, tokenizer = load_model_and_tokenizer(cfg, with_lora=False)
+    # Unsloth attaches load_lora / fast_generate to the PEFT wrapper, so a fresh adapter
+    # (identity at init) must be attached even when evaluating the base model.
+    model, tokenizer = load_model_and_tokenizer(cfg, with_lora=True)
     lora_request = model.load_lora(cfg.eval.lora_path) if cfg.eval.lora_path else None
     results = {}
     for name in cfg.eval.datasets:
