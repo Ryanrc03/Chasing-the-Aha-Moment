@@ -192,8 +192,10 @@ def load_aime2024(system_prompt: str = SYSTEM_PROMPT) -> list[EvalExample]:
 def load_aime2025(system_prompt: str = SYSTEM_PROMPT) -> list[EvalExample]:
     from datasets import load_dataset
 
-    rows = load_dataset("opencompass/AIME2025")["train"]  # 30 problems (I + II)
-    return _examples(rows, "problem", lambda r: str(r["answer"]).strip(), "aime2025", system_prompt)
+    # Two configs of 15 problems each, split "test", columns question/answer.
+    rows = [r for part in ("AIME2025-I", "AIME2025-II")
+            for r in load_dataset("opencompass/AIME2025", part)["test"]]
+    return _examples(rows, "question", lambda r: str(r["answer"]).strip(), "aime2025", system_prompt)
 
 
 def load_math500(system_prompt: str = SYSTEM_PROMPT) -> list[EvalExample]:
