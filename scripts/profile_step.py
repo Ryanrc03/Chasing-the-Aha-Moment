@@ -31,7 +31,7 @@ from aha.config import load_config  # noqa: E402
 from aha.data import load_eval_dataset  # noqa: E402
 from aha.model import load_model_and_tokenizer  # noqa: E402
 from aha.profiling import (  # noqa: E402
-    aggregate, decode_roofline, gpu_busy_fraction, kernels_from_chrome_trace, render, train_roofline,
+    aggregate, categorize, decode_roofline, gpu_busy_fraction, kernels_from_chrome_trace, render, train_roofline,
 )
 
 
@@ -66,17 +66,10 @@ def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, complet
         torch.cuda.synchronize()
     wall = time.time() - t0
 
-    kernels = []
-    for ev in prof.key_averages():
-        cuda_us = getattr(ev, "device_time_total", None)
-        if cuda_us is None:
-            cuda_us = getattr(ev, "cuda_time_total", 0.0)
-        if cuda_us and ev.key:
-            kernels.append((ev.key, float(cuda_us)))
-    # key_averages mixes ops and kernels; keep leaf kernels only (those with no CPU-side children)
-    # by dropping aten:: operators, which would double count their kernels.
-    leaf = [(k, us) for k, us in kernels if not k.startswith("aten::") and not k.startswith("autograd::")
-            and "ProfilerStep" not in k and not k.startswith("torch.") and not k.startswith("cudaLaunch")]
+    # key_averages() mixes autograd nodes (CheckpointFunctionBackward, LoRA_MLP, ...) with the
+    # kernels they launch, which double counts; take GPU kernel events from the chrome trace.
+    prof.export_chrome_trace(str(out / "train_trace.json"))
+    leaf = kernels_from_chrome_trace(out / "train_trace.json")
     agg = aggregate(leaf)
     params = sum(p.numel() for p in model.parameters())
     roof = train_roofline(params, n_seq * total_len, wall)
@@ -84,10 +77,10 @@ def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, complet
     extra = [
         f"- wall time for one fwd+bwd of {n_seq} x {total_len} tokens: **{wall * 1e3:.0f} ms**",
         f"- GPU busy (sum of kernel time / wall, upper bound): **{busy:.0%}** -> idle/launch overhead ~{1 - busy:.0%}",
+        f"- GEMM-only throughput: {roof['flops'] / 1e12 / (sum(us for n, us in leaf if categorize(n) == 'gemm (matmul)') / 1e6):.1f} TFLOPS while a matmul kernel is running",
         f"- params {params / 1e9:.2f} B, ~{roof['flops'] / 1e12:.1f} TFLOP incl. checkpoint recompute -> "
         f"**{roof['achieved_tflops']:.1f} TFLOPS achieved, {roof['compute_utilisation_bf16']:.0%} of BF16 peak**",
     ]
-    prof.export_chrome_trace(str(out / "train_trace.json"))
     (out / "train_kernels.json").write_text(json.dumps(agg, indent=1), encoding="utf-8")
     return render(f"Training half: fwd+bwd, {n_seq} seq x ({prompt_len}+{completion_len}) tokens", agg, extra)
 
@@ -123,7 +116,8 @@ def profile_decode(cfg, model, tokenizer, n_gen: int, max_tokens: int, out: Path
     roof = decode_roofline(weight_bytes, tps, n_gen)
     extra = [
         f"- {n_gen} completions x {max_tokens} tokens in **{wall:.1f} s** = {tps:.0f} tok/s, "
-        f"{roof['achieved_ms_per_step']:.1f} ms per decode step",
+        f"{roof['achieved_ms_per_step']:.1f} ms per decode step (wall time is inflated several-fold "
+        f"by CUPTI tracing; use the unprofiled benchmark for absolute speed, this section for shares)",
         f"- bandwidth floor (stream {weight_bytes / 2**30:.2f} GiB of weights per step at 360 GB/s): "
         f"**{roof['bandwidth_floor_ms_per_step']:.1f} ms** -> bandwidth utilisation **{roof['bandwidth_utilisation']:.0%}**",
     ]
@@ -142,7 +136,9 @@ def profile_decode(cfg, model, tokenizer, n_gen: int, max_tokens: int, out: Path
         kernels += kernels_from_chrome_trace(t)
     agg = aggregate(kernels)
     busy = gpu_busy_fraction(kernels, wall * 1e6)
-    extra.append(f"- GPU busy during decode (kernel time / wall): **{busy:.0%}**")
+    extra.append(f"- GPU busy during decode (kernel time / wall): **{busy:.0%}** (profiler-inflated wall)")
+    extra.append(f"- GPU kernel time per decode step: **{agg['total_us'] / 1e3 / max_tokens:.1f} ms** "
+                 f"vs bandwidth floor {roof['bandwidth_floor_ms_per_step']:.1f} ms")
     (out / "decode_kernels.json").write_text(json.dumps(agg, indent=1), encoding="utf-8")
     return render(f"Sampling half: vLLM decode, {n_gen} x {max_tokens} tokens", agg, extra)
 
