@@ -6,8 +6,11 @@ import re
 from typing import Optional
 
 SOFT_XML_PATTERN = re.compile(r"<reasoning>.*?</reasoning>\s*<answer>.*?</answer>", re.DOTALL)
+# The notebook's pattern demanded a newline after </answer>; vLLM stops at EOS without one,
+# so that reward could never fire (0.0 for all 500 steps of the first run). The trailing
+# newline is optional here.
 STRICT_XML_PATTERN = re.compile(
-    r"^<reasoning>\n.*?\n</reasoning>\n<answer>\n.*?\n</answer>\n$", re.DOTALL
+    r"^<reasoning>\n.*?\n</reasoning>\n<answer>\n.*?\n</answer>\n?$", re.DOTALL
 )
 
 

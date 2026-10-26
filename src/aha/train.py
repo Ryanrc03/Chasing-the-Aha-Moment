@@ -39,6 +39,8 @@ def build_grpo_config(cfg: ExperimentConfig):
     )
     if t.kl_beta is not None:
         kwargs["beta"] = t.kl_beta
+    if t.loss_type is not None:
+        kwargs["loss_type"] = t.loss_type
     return GRPOConfig(**kwargs)
 
 

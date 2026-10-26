@@ -60,6 +60,10 @@ class RewardConfig:
     xmlcount_weight: float = 1.0
     match: str = "exact"  # 'exact' (notebook) or 'relaxed' (eval-style)
     log_samples: bool = True  # print one (question, answer, response) per step
+    # Format rewards (int / strict / soft / xmlcount) are paid only when the <reasoning>
+    # block has at least this many whitespace tokens; 0 disables the gate. Blocks the
+    # "empty envelope" exploit where the policy shrinks reasoning to farm format points.
+    min_reasoning_words: int = 0
     length: LengthRewardConfig = field(default_factory=LengthRewardConfig)
 
 
@@ -83,7 +87,8 @@ class TrainConfig:
     save_steps: int = 250
     logging_steps: int = 1
     max_grad_norm: float = 0.1
-    kl_beta: Optional[float] = None  # TRL GRPOConfig.beta; None keeps TRL's default
+    kl_beta: Optional[float] = None  # TRL GRPOConfig.beta; None keeps TRL's default (0.0 in 0.22!)
+    loss_type: Optional[str] = None  # grpo | bnpo | dr_grpo | dapo; None keeps TRL's default (dapo)
     seed: int = 3407
     report_to: str = "none"
     resume_from_checkpoint: Optional[str] = None

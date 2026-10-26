@@ -100,3 +100,21 @@ def test_total_reward_for_perfect_answer():
     # TRL calls reward functions with keyword arguments only
     total = sum(f(prompts=PROMPTS[:1], completions=completions(STRICT), answer=["4"])[0] for f in funcs)
     assert total == pytest.approx(0.5 + 0.5 + 0.5 + 0.5 + 2.0)
+
+
+def test_strict_format_accepts_eos_without_trailing_newline():
+    # vLLM stops at EOS with no final newline; the notebook regex rejected every such output
+    no_newline = "<reasoning>\n2 + 2 = 4\n</reasoning>\n<answer>\n4\n</answer>"
+    assert make_strict_format_reward()(completions(no_newline)) == [0.5]
+
+
+def test_reasoning_gate_zeroes_format_rewards_only():
+    cfg = RewardConfig(log_samples=False, min_reasoning_words=3)
+    funcs = {f.__name__: f for f in build_reward_funcs(cfg)}
+    thin = "<reasoning>\nguess\n</reasoning>\n<answer>\n4\n</answer>\n"
+    comps = completions(STRICT, thin)
+    assert funcs["int_reward_func"](completions=comps) == [0.5, 0.0]
+    assert funcs["strict_format_reward_func"](completions=comps) == [0.5, 0.0]
+    assert funcs["xmlcount_reward_func"](completions=comps)[1] == 0.0
+    # correctness is never gated
+    assert funcs["correctness_reward_func"](prompts=PROMPTS[:2], completions=comps, answer=["4", "4"]) == [2.0, 2.0]

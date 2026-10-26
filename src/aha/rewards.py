@@ -152,13 +152,27 @@ def make_length_reward(
 # ---------------------------------------------------------------------------
 
 
+def gate_by_reasoning(fn: RewardFn, min_words: int) -> RewardFn:
+    """Zero a format reward for completions whose <reasoning> has fewer than ``min_words`` words."""
+    if min_words <= 0:
+        return fn
+
+    def gated(*args, completions, **kwargs) -> list[float]:
+        values = fn(*args, completions=completions, **kwargs)
+        ok = [len(extract_reasoning(c).split()) >= min_words for c in _contents(completions)]
+        return [v if keep else 0.0 for v, keep in zip(values, ok)]
+
+    return _named(gated, fn.__name__)
+
+
 def build_reward_funcs(cfg: RewardConfig, tokenizer=None) -> list[RewardFn]:
     """Reward list in the same order as the notebooks, plus the optional length term."""
+    g = cfg.min_reasoning_words
     funcs = [
-        make_xmlcount_reward(cfg.xmlcount_weight),
-        make_soft_format_reward(cfg.soft_format_weight),
-        make_strict_format_reward(cfg.strict_format_weight),
-        make_int_reward(cfg.int_weight),
+        gate_by_reasoning(make_xmlcount_reward(cfg.xmlcount_weight), g),
+        gate_by_reasoning(make_soft_format_reward(cfg.soft_format_weight), g),
+        gate_by_reasoning(make_strict_format_reward(cfg.strict_format_weight), g),
+        gate_by_reasoning(make_int_reward(cfg.int_weight), g),
         make_correctness_reward(cfg.correctness_weight, cfg.match, cfg.log_samples),
     ]
     if cfg.length.enabled:

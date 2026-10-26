@@ -1,0 +1,20 @@
+# GRPO with the reward-hacking fixes identified on the first 3060 run (qwen3b_base):
+# that run's total reward rose 1.5 -> 2.1 while correctness fell 79% -> 47% and completions
+# shrank from ~280 to ~90 tokens; GSM8K test accuracy ended below the untouched model.
+_base_: qwen2.5-3b_3060.yaml
+run_name: qwen3b_fixed
+
+reward:
+  # Format terms were worth 2.0 combined, as much as correctness; now 1.0 vs 2.0.
+  int_weight: 0.25
+  strict_format_weight: 0.25
+  soft_format_weight: 0.25
+  xmlcount_weight: 0.5
+  # No format points for an empty envelope: <reasoning> must hold >= 30 words.
+  min_reasoning_words: 30
+
+train:
+  output_dir: outputs/qwen3b_fixed
+  kl_beta: 0.04          # TRL 0.22 defaults to 0.0 -> unconstrained drift; 0.04 is the DeepSeekMath value
+  loss_type: dr_grpo     # no per-sequence length normalisation, removes the short-answer bias
+  save_steps: 50         # finer checkpoints so a sweep can locate where accuracy peaks
