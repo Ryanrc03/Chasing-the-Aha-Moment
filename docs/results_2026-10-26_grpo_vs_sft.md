@@ -29,6 +29,8 @@
 
 ![checkpoint sweep](../report/img/curves/qwen3b_base_checkpoint_sweep.png)
 
+同一道题四个模型的逐字输出对比见 `docs/examples_gsm8k_four_models.md`。
+
 ## 2. Reward hacking：有，出现在哪里
 
 ![GRPO curves](../report/img/curves/qwen3b_base_grpo.png)
