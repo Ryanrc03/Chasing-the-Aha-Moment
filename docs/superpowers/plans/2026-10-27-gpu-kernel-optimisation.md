@@ -313,8 +313,8 @@ def test_reference_matches_bitsandbytes():
     packed, qs = F.quantize_4bit(W, blocksize=64, quant_type="nf4", compress_statistics=True)
     assert qs.nested
     ours = dequant_nf4_reference(packed, resolve_absmax(qs), N, K)
-    theirs = F.dequantize_4bit(packed, qs).float()
-    assert torch.allclose(ours, theirs, atol=1e-6, rtol=1e-5)
+    theirs = F.dequantize_4bit(packed, qs).float()  # bnb returns the quant state's dtype (bf16)
+    assert ((ours - theirs).abs() <= theirs.abs() * 4e-3 + 1e-6).all()  # within bf16 rounding
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
