@@ -12,9 +12,10 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-# RTX 3060 12 GB (GA106): 360 GB/s, ~12.7 TFLOPS FP32, ~51 TFLOPS dense BF16 tensor-core
-# (the FP16/BF16 issue rate consumer cards ship with; see gpu-unlock discussion).
-RTX3060 = {"bandwidth_gbs": 360.0, "bf16_tflops": 51.0, "fp32_tflops": 12.7}
+# RTX 3060 12 GB (GA106): 360 GB/s, ~12.7 TFLOPS FP32 CUDA cores. GeForce Ampere runs the tensor
+# cores at half rate with fp32 accumulate, which every bf16 GEMM needs: 25.6 TFLOPS, not the
+# 51 TFLOPS (fp16 accumulate) on the spec sheet. See aha.kernels.roofline.
+RTX3060 = {"bandwidth_gbs": 360.0, "bf16_tflops": 25.6, "fp32_tflops": 12.7}
 
 CATEGORIES = [
     ("dequant (bnb 4-bit)", re.compile(r"dequant|kDequantize|gemm_4bit|kgemm_4bit|bitsandbytes|nf4", re.I)),
