@@ -90,6 +90,7 @@ class TrainConfig:
     kl_beta: Optional[float] = None  # TRL GRPOConfig.beta; None keeps TRL's default (0.0 in 0.22!)
     loss_type: Optional[str] = None  # grpo | bnpo | dr_grpo | dapo; None keeps TRL's default (dapo)
     scale_rewards: Optional[str] = None  # group | batch | none; None keeps TRL's default (group = divide by group std)
+    use_liger_loss: Optional[bool] = None  # TRL GRPOConfig.use_liger_loss (fused lm_head + loss); None keeps TRL's default
     seed: int = 3407
     report_to: str = "none"
     resume_from_checkpoint: Optional[str] = None
