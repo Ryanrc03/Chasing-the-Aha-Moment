@@ -1,0 +1,9 @@
+# Overnight queue 2026-10-27 (docs/plan_2026-10-27_next_experiments.md).
+# 消融：去掉 KL，只靠门控和减半的格式分能不能止住塌缩。只改这一个变量，其余同 fixed。
+_base_: qwen2.5-3b_3060_fixed.yaml
+run_name: qwen3b_nokl
+
+train:
+  output_dir: outputs/qwen3b_nokl
+  save_steps: 100
+  kl_beta: 0.0

@@ -11,9 +11,8 @@ from aha.model import load_model_and_tokenizer
 from aha.rewards import build_reward_funcs
 
 
-def build_grpo_config(cfg: ExperimentConfig):
-    from trl import GRPOConfig
-
+def grpo_kwargs(cfg: ExperimentConfig) -> dict:
+    """Keyword arguments for TRL's GRPOConfig; optional knobs are passed only when set."""
     t = cfg.train
     kwargs = dict(
         learning_rate=t.learning_rate,
@@ -41,7 +40,15 @@ def build_grpo_config(cfg: ExperimentConfig):
         kwargs["beta"] = t.kl_beta
     if t.loss_type is not None:
         kwargs["loss_type"] = t.loss_type
-    return GRPOConfig(**kwargs)
+    if t.scale_rewards is not None:
+        kwargs["scale_rewards"] = t.scale_rewards
+    return kwargs
+
+
+def build_grpo_config(cfg: ExperimentConfig):
+    from trl import GRPOConfig
+
+    return GRPOConfig(**grpo_kwargs(cfg))
 
 
 def train(cfg: ExperimentConfig) -> str:

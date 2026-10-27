@@ -1,0 +1,9 @@
+# Overnight queue 2026-10-27 (docs/plan_2026-10-27_next_experiments.md).
+# 学习率 × 4：平台是不是因为 lr 太小。只改这一个变量，其余同 fixed。
+_base_: qwen2.5-3b_3060_fixed.yaml
+run_name: qwen3b_lr2e5
+
+train:
+  output_dir: outputs/qwen3b_lr2e5
+  save_steps: 100
+  learning_rate: 2.0e-5
