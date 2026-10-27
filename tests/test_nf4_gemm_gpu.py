@@ -75,3 +75,16 @@ def test_patch_routes_small_m_and_delegates_large_m():
     finally:
         mod.unpatch_bitsandbytes()
     assert bitsandbytes.matmul_4bit is mod._ORIGINAL_MATMUL_4BIT
+
+
+@pytest.mark.parametrize("promote_every", [1, 4])
+def test_fp16acc_gemm_close_to_fp32(promote_every):
+    from aha.kernels.fp16acc_gemm import gemm_fp16acc
+
+    torch.manual_seed(0)
+    a = (torch.randn(256, 2048, device="cuda") * 0.5).half()
+    b = (torch.randn(2048, 512, device="cuda") * 0.02).half()
+    ref = a.float() @ b.float()
+    out = gemm_fp16acc(a, b, promote_every=promote_every)
+    assert out.dtype == torch.float16
+    assert _rel(out, ref) < 5e-3
