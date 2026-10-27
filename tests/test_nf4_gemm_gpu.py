@@ -49,3 +49,29 @@ def test_nf4_gemm_rejects_unsupported_shapes():
     with pytest.raises(ValueError):
         nf4_gemm(x, torch.zeros(2048 * 2048 // 2, 1, dtype=torch.uint8, device="cuda"),
                  torch.zeros(2048 * 2048 // 64, dtype=torch.float16, device="cuda"), 2048, 2048)
+
+
+def test_patch_routes_small_m_and_delegates_large_m():
+    import bitsandbytes
+
+    from aha.kernels import nf4_gemm as mod
+
+    x, packed, qs, ref = _case(2048, 2048, 8)
+    with torch.no_grad():
+        before = bitsandbytes.matmul_4bit(x, packed.t(), qs)
+    mod.patch_bitsandbytes()
+    try:
+        assert bitsandbytes.matmul_4bit is mod._patched_matmul_4bit
+        with torch.no_grad():
+            after = bitsandbytes.matmul_4bit(x, packed.t(), qs)
+            assert _rel(after, ref) <= 1.5 * _rel(before, ref) + 1e-4
+            # 3-D activations keep their shape
+            after3 = bitsandbytes.matmul_4bit(x.unsqueeze(0), packed.t(), qs)
+            assert after3.shape == (1, 8, 2048)
+            # large M is delegated to the original implementation
+            xb = torch.randn(300, 2048, device="cuda").to(torch.bfloat16)
+            big = bitsandbytes.matmul_4bit(xb, packed.t(), qs)
+            assert torch.equal(big, mod._ORIGINAL_MATMUL_4BIT(xb, packed.t(), qs))
+    finally:
+        mod.unpatch_bitsandbytes()
+    assert bitsandbytes.matmul_4bit is mod._ORIGINAL_MATMUL_4BIT

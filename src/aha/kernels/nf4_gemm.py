@@ -169,3 +169,53 @@ def nf4_gemm(x: torch.Tensor, packed: torch.Tensor, absmax16: torch.Tensor, N: i
                            BLOCK_M=block_m, BLOCK_N=block_n, BLOCK_K=BLOCKSIZE, SPLIT_K=1,
                            num_warps=num_warps, num_stages=num_stages)
     return out
+
+
+# --- bitsandbytes integration -------------------------------------------------------------
+# vLLM's bitsandbytes linear method does ``from bitsandbytes import matmul_4bit`` inside the call,
+# so rebinding the package attribute reaches the engine (which Unsloth runs in this process,
+# VLLM_ENABLE_V1_MULTIPROCESSING=0). Apply before the engine is built so the warm-up run fills the
+# absmax cache before CUDA-graph capture.
+
+_ORIGINAL_MATMUL_4BIT = None
+
+
+def _patched_matmul_4bit(A, B, quant_state, out=None, bias=None):
+    if (
+        quant_state is not None
+        and quant_state.quant_type == "nf4"
+        and quant_state.blocksize == BLOCKSIZE
+        and A.dtype == torch.bfloat16
+        and not (torch.is_grad_enabled() and A.requires_grad)
+        and A.shape[-1] == quant_state.shape[1]
+        and quant_state.shape[1] % BLOCKSIZE == 0
+        and 1 <= A.numel() // A.shape[-1] <= MAX_M
+    ):
+        N, K = quant_state.shape
+        x2 = A.reshape(-1, K)
+        y = nf4_gemm(x2, B.reshape(-1), absmax_fp16_for(quant_state), N, K)
+        if bias is not None:
+            y = y + bias
+        y = y.reshape(*A.shape[:-1], N)
+        if out is not None:
+            out.copy_(y)
+            return out
+        return y
+    return _ORIGINAL_MATMUL_4BIT(A, B, quant_state, out=out, bias=bias)
+
+
+def patch_bitsandbytes() -> None:
+    global _ORIGINAL_MATMUL_4BIT
+    import bitsandbytes
+
+    if bitsandbytes.matmul_4bit is _patched_matmul_4bit:
+        return
+    _ORIGINAL_MATMUL_4BIT = bitsandbytes.matmul_4bit
+    bitsandbytes.matmul_4bit = _patched_matmul_4bit
+
+
+def unpatch_bitsandbytes() -> None:
+    import bitsandbytes
+
+    if _ORIGINAL_MATMUL_4BIT is not None:
+        bitsandbytes.matmul_4bit = _ORIGINAL_MATMUL_4BIT
