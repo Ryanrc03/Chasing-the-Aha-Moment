@@ -70,17 +70,22 @@ correctness 从 79% 掉到 47%。KL 全程为 0。strict format 全程为 0。
 
 ## 3. 为什么会这样
 
-按贡献大小排序：
+前三条有直接证据，第四条是还没证实的机制。四处修改是一起上的，没做消融，不能给它们排贡献大小。
 
-1. **没有 KL 约束**。TRL 0.22 的 `GRPOConfig.beta` 默认 0.0，曲线里 kl 恒为 0，策略和参考模型之间没有任何约束。
+> 更正（2026-10-26）：初稿说 TRL 默认的 `dapo` 损失「天然偏好短输出」，又说 xml count 的尾部扣分「推向短输出」。
+> 这两句不对：TRL 文档写明 `dapo` 的设计目的就是去掉长度偏差；xml count 只扣 `</answer>` 之后的字符，不管推理多长。下面是改过的版本。
+
+1. **格式奖励权重和正确率一样大，而且容易拿得多**。int 0.5 + strict 0.5 + soft 0.5 + xmlcount 0.5 = 2.0，和 correctness 的 2.0 相等。
+   一组 6 个回答全对或全错时，correctness 的差是 0，advantage 全由格式分决定，格式写得更干净的回答被往上推；
+   短回答出错的地方少，最容易写干净。格式分 +1.25、correctness −0.65，正好是总 reward 的 +0.60。
+2. **没有 KL 约束**。TRL 0.22 的 `GRPOConfig.beta` 默认 0.0。β = 0 时 TRL / Unsloth 根本不算 KL（逐 token 的 KL 直接置 0），
+   所以日志里 kl 恒为 0 是「没测」，不是「没漂」：最终回答长度分布和原模型的 KL 是 3.54 nats，修正版 0.017。
    论文正文说"follow the TRL implementation, which includes KL"，但 notebook 没设 beta，实际没有。
-2. **损失函数自带的长度偏置**。TRL 0.22 默认 `loss_type=dapo`，按 token 做归一化，再加组内 advantage 标准化。
-   短的正确答案和长的正确答案拿同样的 reward，但梯度更新上短序列更"划算"，模型学到"少写"。
-   Dr. GRPO（Liu et al. 2025）分析的就是这个偏置。
-3. **格式奖励权重和正确率一样大**。int 0.5 + strict 0.5 + soft 0.5 + xmlcount 0.5 = 2.0，和 correctness 的 2.0 相等。
-   格式分容易拿、方差小，是组内最稳定的 advantage 来源，模型优先把它吃满。
-4. **strict format 永远拿不到**。它的正则要求 `</answer>` 后有换行再结束，vLLM 在 EOS 处停止没有尾换行，500 步全是 0。
-   这 0.5 的权重白占，而 xml count 里"`</answer>` 后每个字符扣 0.001"成了唯一还能优化的方向，进一步推向短输出。
+3. **strict format 永远拿不到**。它的正则要求 `</answer>` 后有换行再结束，vLLM 在 EOS 处停止没有尾换行，500 步全是 0。
+   这是 bug 不是 hacking 本身，但 0.5 的权重白占，格式分的推力全落在 int、soft、xml count 上。
+4. **损失归一化可能放大了漂移（未证实）**。`dapo` 把 batch 里所有 token 的 loss 加起来除以 token 总数；同一组里长短回答的
+   token 权重相同，没有相对的长度偏差。但每步只有 1 道题 6 个回答，回答变短时分母变小、每个 token 的梯度变大，
+   回答从 282 缩到 90，等效步长约变成 3 倍，可能让塌缩越来越快。`dr_grpo` 用常数（最大回答长度）做分母，步长不随长度变。
 5. 采样温度 1.0、lr 5e-6、`max_grad_norm 0.1`：噪声大，约束弱，但不是主因。
 
 ## 4. 怎么解决
@@ -90,7 +95,7 @@ correctness 从 79% 掉到 47%。KL 全程为 0。strict format 全程为 0。
 | 问题 | 修法 | 配置 |
 |---|---|---|
 | 无 KL | 恢复 KL 惩罚，DeepSeekMath 的值 | `train.kl_beta: 0.04` |
-| 长度偏置 | 用 Dr. GRPO 损失，去掉按长度归一化 | `train.loss_type: dr_grpo` |
+| 分母随回答长度变 | 用 Dr. GRPO 损失，常数归一化 | `train.loss_type: dr_grpo` |
 | 格式分太重 | 格式项合计 1.0，correctness 2.0 | `int/strict/soft 0.25，xmlcount 0.5` |
 | 空信封 | `<reasoning>` 不足 30 词不发任何格式分 | `reward.min_reasoning_words: 30` |
 | strict 失效 | 正则允许无尾换行 | 已改 `STRICT_XML_PATTERN` |

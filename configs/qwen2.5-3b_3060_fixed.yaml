@@ -16,5 +16,5 @@ reward:
 train:
   output_dir: outputs/qwen3b_fixed
   kl_beta: 0.04          # TRL 0.22 defaults to 0.0 -> unconstrained drift; 0.04 is the DeepSeekMath value
-  loss_type: dr_grpo     # no per-sequence length normalisation, removes the short-answer bias
+  loss_type: dr_grpo     # constant normaliser (max_completion_length); with dapo the per-token step grows as answers shrink
   save_steps: 50         # finer checkpoints so a sweep can locate where accuracy peaks
