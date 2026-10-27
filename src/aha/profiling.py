@@ -111,3 +111,62 @@ def render(title: str, agg: dict, extra_lines: list[str] = ()) -> str:
     lines += list(extra_lines)
     lines.append("")
     return "\n".join(lines)
+
+
+ELEMENTWISE_KERNELS = re.compile(r"elementwise|Fill|copy|Memcpy|Memset|cat_|index|zero", re.I)
+TORCH_INTERNAL_FRAME = re.compile(r"/torch/|<built-in|torch/_")
+
+
+def attribute_kernels(path: Path, kernel_pattern: re.Pattern = ELEMENTWISE_KERNELS, depth: int = 3) -> list[dict]:
+    """Map memory-traffic kernels back to the aten op and the innermost non-torch Python frame
+    that launched them (needs a trace recorded with ``with_stack=True``).
+
+    Links: kernel.args["External id"] == cpu_op.args["External id"]; the op's Python frames are
+    the ``python_function`` events on the same thread whose span encloses the op.
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    events = data["traceEvents"] if isinstance(data, dict) else data
+    ops: dict[int, dict] = {}
+    for e in events:
+        if e.get("cat") == "cpu_op" and "External id" in e.get("args", {}):
+            ext = e["args"]["External id"]
+            if ext not in ops or e.get("dur", 0) < ops[ext].get("dur", 0):  # innermost op
+                ops[ext] = e
+    frames_by_tid: dict[int, list[dict]] = defaultdict(list)
+    for e in events:
+        if e.get("cat") == "python_function" and "dur" in e:
+            frames_by_tid[e.get("tid")].append(e)
+
+    def frames_for(op: dict) -> list[str]:
+        s, t = op["ts"], op["ts"] + op.get("dur", 0)
+        enclosing = [f for f in frames_by_tid.get(op.get("tid"), []) if f["ts"] <= s and f["ts"] + f["dur"] >= t]
+        enclosing.sort(key=lambda f: f["dur"])  # innermost first
+        user = [f["name"] for f in enclosing if not TORCH_INTERNAL_FRAME.search(f["name"])]
+        return user[:depth] or [f["name"] for f in enclosing[:1]] or ["<no stack>"]
+
+    agg: dict[tuple, dict] = {}
+    for e in events:
+        cat = str(e.get("cat", "")).lower()
+        if cat not in ("kernel", "gpu_memcpy", "gpu_memset") or not kernel_pattern.search(e.get("name", "")):
+            continue
+        op = ops.get(e.get("args", {}).get("External id"))
+        op_name = op["name"] if op else "<no op>"
+        frames = frames_for(op) if op else ["<no stack>"]
+        key = (op_name, frames[0])
+        row = agg.setdefault(key, {"op": op_name, "frame": frames[0], "stack": " <- ".join(frames), "us": 0.0,
+                                   "launches": 0, "kernel": e["name"][:60]})
+        row["us"] += float(e.get("dur", 0.0))
+        row["launches"] += 1
+    return sorted(agg.values(), key=lambda r: -r["us"])
+
+
+def render_attribution(rows: list[dict], total_us: float, top: int = 30) -> str:
+    lines = ["## Memory-traffic kernels by launching code", "",
+             "| share of step | ms | launches | aten op | frame (innermost non-torch) |", "|---|---|---|---|---|"]
+    for r in rows[:top]:
+        lines.append(f"| {r['us'] / total_us:.1%} | {r['us'] / 1e3:.1f} | {r['launches']} | `{r['op']}` | `{r['frame']}` |")
+    lines += ["", "Full stacks (top 10):", ""]
+    for r in rows[:10]:
+        lines.append(f"- `{r['op']}` {r['us'] / 1e3:.1f} ms: {r['stack']}")
+    return "\n".join(lines) + "\n"

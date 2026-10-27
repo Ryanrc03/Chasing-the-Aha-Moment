@@ -60,3 +60,28 @@ def test_rooflines():
 def test_render():
     md = render("T", aggregate([("ampere_gemm", 1000.0)]), ["- note"])
     assert "## T" in md and "gemm (matmul)" in md and "- note" in md
+
+
+def test_attribute_kernels_maps_fill_to_python_frame(tmp_path):
+    from aha.profiling import attribute_kernels, render_attribution
+
+    trace = {"traceEvents": [
+        # python frames (with_stack=True): outer user frame, inner torch frame
+        {"ph": "X", "cat": "python_function", "tid": 1, "ts": 0, "dur": 100,
+         "name": "site-packages/peft/tuners/lora/layer.py(400): forward"},
+        {"ph": "X", "cat": "python_function", "tid": 1, "ts": 10, "dur": 50,
+         "name": "site-packages/torch/nn/functional.py(10): linear"},
+        {"ph": "X", "cat": "cpu_op", "tid": 1, "ts": 20, "dur": 5, "name": "aten::fill_", "args": {"External id": 7}},
+        {"ph": "X", "cat": "cpu_op", "tid": 1, "ts": 60, "dur": 5, "name": "aten::copy_", "args": {"External id": 8}},
+        {"ph": "X", "cat": "kernel", "ts": 1000, "dur": 30.0, "name": "void at::native::vectorized_elementwise_kernel<FillFunctor>", "args": {"External id": 7}},
+        {"ph": "X", "cat": "kernel", "ts": 1100, "dur": 10.0, "name": "void at::native::vectorized_elementwise_kernel<bfloat16_copy_kernel>", "args": {"External id": 8}},
+        {"ph": "X", "cat": "kernel", "ts": 1200, "dur": 500.0, "name": "ampere_bf16_gemm", "args": {"External id": 9}},
+    ]}
+    p = tmp_path / "t.json"
+    p.write_text(json.dumps(trace))
+    rows = attribute_kernels(p)
+    assert rows[0]["op"] == "aten::fill_" and rows[0]["us"] == 30.0
+    assert rows[0]["frame"] == "site-packages/peft/tuners/lora/layer.py(400): forward"
+    assert rows[1]["op"] == "aten::copy_" and rows[1]["frame"].endswith("layer.py(400): forward")
+    md = render_attribution(rows, total_us=540.0)
+    assert "aten::fill_" in md and "5.6%" in md
