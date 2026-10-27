@@ -179,6 +179,12 @@ def nf4_gemm(x: torch.Tensor, packed: torch.Tensor, absmax16: torch.Tensor, N: i
 
 _ORIGINAL_MATMUL_4BIT = None
 
+# Routing rule from docs/kernels/gemm_4bit.md (2026-10-27): the Triton kernel wins for M <= 16 on
+# N >= 2048 (q/o 1.2x, gate_up 1.06x, down 1.6x) and loses on kv_proj (N=256: too few programs)
+# and at M >= 24 (the 32-row tile doubles the dot work). Everything else stays on bitsandbytes.
+ROUTE_MAX_M = 16
+ROUTE_MIN_N = 1024
+
 
 def _patched_matmul_4bit(A, B, quant_state, out=None, bias=None):
     if (
@@ -189,7 +195,8 @@ def _patched_matmul_4bit(A, B, quant_state, out=None, bias=None):
         and not (torch.is_grad_enabled() and A.requires_grad)
         and A.shape[-1] == quant_state.shape[1]
         and quant_state.shape[1] % BLOCKSIZE == 0
-        and 1 <= A.numel() // A.shape[-1] <= MAX_M
+        and quant_state.shape[0] >= ROUTE_MIN_N
+        and 1 <= A.numel() // A.shape[-1] <= ROUTE_MAX_M
     ):
         N, K = quant_state.shape
         x2 = A.reshape(-1, K)
