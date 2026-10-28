@@ -79,9 +79,8 @@ def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, complet
         attribution_md = render_attribution(rows, total_us=sum(us for _, us in leaf))
         Path("docs/kernels").mkdir(parents=True, exist_ok=True)
         Path("docs/kernels/attribution.md").write_text(
-            "# fill / copy / cast kernels in one training step, attributed to code
-
-" + attribution_md, encoding="utf-8")
+            "# fill / copy / cast kernels in one training step, attributed to code\n\n" + attribution_md,
+            encoding="utf-8")
         print(attribution_md)
     agg = aggregate(leaf)
     params = sum(p.numel() for p in model.parameters())

@@ -19,6 +19,15 @@ from pathlib import Path
 #   UNSLOTH_VLLM_STANDBY=1 python scripts/eval.py ...
 os.environ.setdefault("UNSLOTH_VLLM_STANDBY", "0")
 
+# Opt-in: route decode-sized 4-bit matmuls to the Triton NF4 GEMM (docs/kernels/gemm_4bit.md).
+# Must run before vLLM builds its engine, i.e. before the model is loaded.
+if os.environ.get("AHA_TRITON_NF4", "0") == "1":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from aha.kernels.nf4_gemm import patch_bitsandbytes
+
+    patch_bitsandbytes()
+    print("AHA_TRITON_NF4=1: bitsandbytes.matmul_4bit routed to the Triton NF4 GEMM")
+
 try:
     import unsloth  # noqa: F401
 except ImportError:
