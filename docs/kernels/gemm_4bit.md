@@ -98,5 +98,6 @@ bytes = packed nibbles + fp16 absmax + activations; bw% against 360 GB/s; tc% ag
 | gate_up 11008×2048 | 24 | 0.156 ms | 0.305 ms | 0.51× |
 
 - 目标（≥ 55% 带宽）没有达到：最好的形状 23%，和 bnb 同一水平；按层累加（q + 2 kv + o + gate_up + down，M=6）从 0.55 ms 降到 0.44 ms，约 20%。
-- 三轮设计探索（scratchpad `nf4_experiment*.py`）的结论：瓶颈是反量化的 ALU 路径，不是访存。去掉查表（结果错，只计时）能到 143 GB/s（40%）；fp32 LUT gather 0.37 ms、int32 packed gather 0.22 ms、15 路 `tl.where` 树 0.16 ms、PTX `prmt` 树 0.14 ms。Triton 在这个形状上的天花板约 40%，要再往上需要 CUDA 手写（共享内存 LUT、`cp.async` 流水线、`ldmatrix`）。
+- 三轮设计探索（scratchpad `nf4_experiment*.py`）的结论：瓶颈是反量化的 ALU 路径，不是访存。探索时 GPU 被别的进程共用，各轮绝对时间漂移（bnb 本身 0.152–0.245 ms），所以按「相对同一轮 bnb」比较：两次 fp32 gather 1.50×、一次 int32 gather 0.97×、15 路 `tl.where` 树 1.06×、PTX `prmt` 树 0.95×，去掉查表（结果错，只计时）0.34×（约 40% 带宽）。只有 fp32 gather 明显差，其余三种差别在 10% 以内。Triton 在这个形状上的天花板约 40%，要再往上需要 CUDA 手写（共享内存 LUT、`cp.async` 流水线、`ldmatrix`）。
+- 更正（2026-10-28）：之前写的「fp32 gather 0.37 ms、int32 gather 0.22 ms、where 树 0.16 ms、prmt 0.14 ms」把不同轮次的绝对时间放在一起比，排序不成立。
 - M ≥ 24 时 BLOCK_M=32 的 tile 让 dot 工作量翻倍、寄存器压力上升，比 bnb 慢一倍；kv_proj（N=256）只有 16 个 program，填不满 28 个 SM。接入时按 M ≤ 16 且 N ≥ 1024 路由，其余交回 bnb。

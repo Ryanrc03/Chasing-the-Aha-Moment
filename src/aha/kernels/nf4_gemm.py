@@ -9,12 +9,13 @@ per byte, codebook held in registers; no memory lookup), feeds two tensor-core d
 the high nibbles, odd k from the low ones) and scales the per-block partial product by the
 absmax afterwards. fp32 accumulate, bf16 out.
 
-Design notes from the probes (scratchpad nf4_experiment*.py, 2026-10-27):
-- a 16-entry codebook gather from global/L1 is the single most expensive thing Triton can emit
-  here (two fp32 gathers: 0.37 ms on gate_up; one packed int32 gather: 0.22 ms; prmt: 0.14 ms);
-- a 15-way tl.where select tree costs about the same as prmt;
-- with the lookup removed entirely the kernel reaches ~143 GB/s (40%), which is this design's
-  ceiling in Triton; going further needs a CUDA kernel with a shared-memory LUT and cp.async.
+Design notes from the probes (scratchpad nf4_experiment*.py, 2026-10-27). The GPU was shared with
+another process, so absolute times drifted between probe runs; each variant is quoted relative to
+bitsandbytes' fused kernel timed in the same run (gate_up, M=6):
+- two fp32 codebook gathers: 1.50x bnb (the only clearly bad option);
+- one packed int32 gather of a 256-entry table: 0.97x; 15-way tl.where tree: 1.06x; prmt: 0.95x;
+- with the lookup removed entirely: 0.34x (~40% of bandwidth), this design's ceiling in Triton.
+  Going further needs a CUDA kernel with a shared-memory LUT, cp.async and ldmatrix.
 
 Nested absmax statistics are resolved once per weight into an fp16 vector (``absmax_fp16_for``)
 and cached by the identity of the quant state's absmax tensor; ~95 MB for the whole 3B model.
