@@ -133,16 +133,43 @@ TRAIN_LOADERS: dict[str, Callable] = {
 }
 
 
+def load_pass_counts(path: str) -> dict[int, int]:
+    """{training-row index: number of correct samples} from a scripts/presample.py JSONL."""
+    import json
+
+    out: dict[int, int] = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                out[int(r["idx"])] = int(r["passes"])
+    return out
+
+
+def select_by_pass_count(passes: dict[int, int], lo: int, hi: int) -> list[int]:
+    """Row indices whose pass count lies in [lo, hi], in ascending order."""
+    return sorted(i for i, p in passes.items() if lo <= p <= hi)
+
+
 def load_train_dataset(
     name: str,
     split: str = "train",
     max_samples: Optional[int] = None,
     shuffle_seed: Optional[int] = None,
     system_prompt: str = SYSTEM_PROMPT,
+    filter_file: Optional[str] = None,
+    filter_min_pass: int = 1,
+    filter_max_pass: int = 5,
 ):
     if name not in TRAIN_LOADERS:
         raise ValueError(f"unknown train dataset {name!r}; choose from {sorted(TRAIN_LOADERS)}")
     data = TRAIN_LOADERS[name](split=split, system_prompt=system_prompt)
+    if filter_file is not None:
+        keep = select_by_pass_count(load_pass_counts(filter_file), filter_min_pass, filter_max_pass)
+        if not keep:
+            raise ValueError(f"filter {filter_file} [{filter_min_pass}, {filter_max_pass}] keeps no problems")
+        data = data.select(keep)
+        print(f"difficulty filter: kept {len(keep)} problems with {filter_min_pass}-{filter_max_pass} passes")
     if shuffle_seed is not None:
         data = data.shuffle(seed=shuffle_seed)
     if max_samples is not None:

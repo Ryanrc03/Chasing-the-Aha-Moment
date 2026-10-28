@@ -21,6 +21,7 @@ REWARD_LABELS = {
     "rewards/soft_format_reward_func/mean": "soft format",
     "rewards/xmlcount_reward_func/mean": "xml count",
     "rewards/length_reward_func/mean": "length (R_len)",
+    "rewards/format_gate_reward_func/mean": "format gate",
 }
 
 

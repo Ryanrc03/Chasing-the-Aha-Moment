@@ -1,0 +1,13 @@
+# Data night 2026-10-28 (docs/plan_2026-10-28_data_night.md), run A.
+# Same as fixed, but trains only on problems the untouched model solves in 1-5 of 6 tries.
+_base_: qwen2.5-3b_3060_fixed.yaml
+run_name: qwen3b_filtered
+
+data:
+  filter_file: outputs/presample/gsm8k_instruct_g6.jsonl
+  filter_min_pass: 1
+  filter_max_pass: 5
+
+train:
+  output_dir: outputs/qwen3b_filtered
+  save_steps: 100

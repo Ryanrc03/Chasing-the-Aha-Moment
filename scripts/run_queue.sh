@@ -15,6 +15,9 @@ QUEUE=${QUEUE:-"configs/qwen2.5-3b_3060_fixed_lr2e5.yaml configs/qwen2.5-3b_3060
 TRAIN_TIMEOUT=${TRAIN_TIMEOUT:-14400}   # 4 h
 SWEEP_STEPS=${SWEEP_STEPS:-"200 300 400"}
 FULL_TIMEOUT=${FULL_TIMEOUT:-4500}      # 75 min for 1,319 problems
+SUMMARY_OUT=${SUMMARY_OUT:-results/queue_summary.md}
+PLOT_DIR=${PLOT_DIR:-report/img/curves/queue}
+DONE_MARKER=${DONE_MARKER:-logs/queue.DONE}
 
 stage() { echo "=== $(date '+%F %T') $*"; }
 field() { python -c "import sys;sys.path.insert(0,'src');from aha.config import load_config;c=load_config('$1');print($2)"; }
@@ -58,10 +61,10 @@ stage "summary"
   python scripts/compare_results.py qwen3b_fixed "${runs[@]}" --datasets gsm8k_test
   echo
   python scripts/analyze_hacking.py qwen3b_fixed "${runs[@]}"
-} > results/queue_summary.md 2>&1
+} > "$SUMMARY_OUT" 2>&1
 python scripts/plot_curves.py outputs/qwen3b_fixed $(for r in "${runs[@]}"; do [ -d "outputs/$r" ] && echo "outputs/$r"; done) \
-  --compare rewards/correctness_reward_func/mean --out report/img/curves/queue > /dev/null 2>&1 || true
+  --compare rewards/correctness_reward_func/mean --out "$PLOT_DIR" > /dev/null 2>&1 || true
 python scripts/plot_curves.py outputs/qwen3b_fixed $(for r in "${runs[@]}"; do [ -d "outputs/$r" ] && echo "outputs/$r"; done) \
-  --compare completion_length --out report/img/curves/queue > /dev/null 2>&1 || true
+  --compare completion_length --out "$PLOT_DIR" > /dev/null 2>&1 || true
 stage "ALL DONE"
-touch logs/queue.DONE
+touch "$DONE_MARKER"

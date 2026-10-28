@@ -1,0 +1,12 @@
+# Data night 2026-10-28, run B: run A plus a gate-only format reward.
+# Correctness counts only when the format is intact; the format bonus is flat, so it never
+# separates two well-formed answers. All-right, well-formed groups give exactly zero update.
+_base_: qwen2.5-3b_3060_fixed_filtered.yaml
+run_name: qwen3b_filtered_gate
+
+reward:
+  format_mode: gate
+  format_gate_weight: 0.25
+
+train:
+  output_dir: outputs/qwen3b_filtered_gate

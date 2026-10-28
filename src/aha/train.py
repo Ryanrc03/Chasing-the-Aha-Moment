@@ -65,6 +65,9 @@ def train(cfg: ExperimentConfig) -> str:
         split=cfg.data.train_split,
         max_samples=cfg.data.max_train_samples,
         shuffle_seed=cfg.data.shuffle_seed,
+        filter_file=cfg.data.filter_file,
+        filter_min_pass=cfg.data.filter_min_pass,
+        filter_max_pass=cfg.data.filter_max_pass,
     )
     reward_funcs = build_reward_funcs(cfg.reward, tokenizer=tokenizer)
 

@@ -165,8 +165,48 @@ def gate_by_reasoning(fn: RewardFn, min_words: int) -> RewardFn:
     return _named(gated, fn.__name__)
 
 
+def format_intact(text: str, min_words: int = 0) -> bool:
+    """Soft <reasoning>/<answer> structure, a closed answer tag, and enough reasoning words."""
+    return (
+        SOFT_XML_PATTERN.match(text) is not None
+        and "</answer>" in text
+        and len(extract_reasoning(text).split()) >= min_words
+    )
+
+
+def make_gated_correctness_reward(weight: float = 2.0, match: str = "exact", min_words: int = 0,
+                                  log_samples: bool = True) -> RewardFn:
+    """Correctness that only counts when the format is intact (logged under the usual name)."""
+    plain = make_correctness_reward(weight, match, log_samples)
+
+    def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[float]:
+        values = plain(prompts=prompts, completions=completions, answer=answer, **kwargs)
+        return [v if format_intact(c, min_words) else 0.0 for v, c in zip(values, _contents(completions))]
+
+    return _named(correctness_reward_func, "correctness_reward_func")
+
+
+def make_format_gate_reward(weight: float = 0.25, min_words: int = 0) -> RewardFn:
+    """A flat bonus for an intact format: identical for every well-formed answer, so it never
+    separates two well-formed answers inside a group."""
+    def format_gate_reward_func(completions, **kwargs) -> list[float]:
+        return [weight if format_intact(c, min_words) else 0.0 for c in _contents(completions)]
+
+    return _named(format_gate_reward_func, "format_gate_reward_func")
+
+
 def build_reward_funcs(cfg: RewardConfig, tokenizer=None) -> list[RewardFn]:
     """Reward list in the same order as the notebooks, plus the optional length term."""
+    if cfg.format_mode == "gate":
+        funcs = [
+            make_format_gate_reward(cfg.format_gate_weight, cfg.min_reasoning_words),
+            make_gated_correctness_reward(cfg.correctness_weight, cfg.match, cfg.min_reasoning_words, cfg.log_samples),
+        ]
+        if cfg.length.enabled:
+            funcs.append(make_length_reward(cfg.length.alpha, cfg.length.beta, cfg.length.l_max, cfg.match, tokenizer))
+        return funcs
+    if cfg.format_mode != "graded":
+        raise ValueError(f"unknown reward.format_mode {cfg.format_mode!r} (graded | gate)")
     g = cfg.min_reasoning_words
     funcs = [
         gate_by_reasoning(make_xmlcount_reward(cfg.xmlcount_weight), g),

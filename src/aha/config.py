@@ -39,6 +39,12 @@ class DataConfig:
     train_split: str = "train"
     max_train_samples: Optional[int] = None
     shuffle_seed: Optional[int] = None
+    # Difficulty filter: a JSONL written by scripts/presample.py with one {"idx", "passes", "n"}
+    # per training problem. Only problems with filter_min_pass <= passes <= filter_max_pass
+    # are kept (1..5 of 6 = "sometimes right": correctness can separate a group's answers).
+    filter_file: Optional[str] = None
+    filter_min_pass: int = 1
+    filter_max_pass: int = 5
 
 
 @dataclass
@@ -64,6 +70,13 @@ class RewardConfig:
     # block has at least this many whitespace tokens; 0 disables the gate. Blocks the
     # "empty envelope" exploit where the policy shrinks reasoning to farm format points.
     min_reasoning_words: int = 0
+    # "graded": the five notebook rewards (format terms graded, can drive the advantage).
+    # "gate":   correctness counts only when the format is intact (soft pattern, answer tag,
+    #           >= min_reasoning_words), plus a small flat bonus for an intact format. A group
+    #           whose answers are all right and well-formed then has zero variance: no update
+    #           from format noise.
+    format_mode: str = "graded"
+    format_gate_weight: float = 0.25
     length: LengthRewardConfig = field(default_factory=LengthRewardConfig)
 
 
