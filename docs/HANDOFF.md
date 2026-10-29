@@ -1,5 +1,28 @@
 # 交接（2026-10-28 00:40）
 
+## 后续接管记录（2026-10-28 00:50，America/Chicago）
+
+用户选择：**接好自动收尾流程，本轮交付进度与文件**，本轮不等夜跑结束。
+
+- 原有队列 PID `2948` 正常预采样，未重启训练、未追加候选实验。
+- 已启动独立收尾进程：WSL PID `3456`，Windows 隐藏 `wsl.exe` PID `31948`。
+  它等待原队列退出，核对 `logs/data_night.DONE` 后执行 `scripts/analyze_data_night.py`。
+- Windows 上用 `Start-Process wsl.exe -WindowStyle Hidden` 保持独立宿主；本次直接从短命 WSL shell
+  `nohup ... & disown` 启动的尝试未存活，已改用独立宿主并核验进程和 waiting 状态。
+- 统计脚本严格核验 fixed/A/B 各 500 步、最终 LoRA、1,319 道逐题预测及 metrics，一项缺失即失败。
+  然后自动生成 A 对 fixed、B 对 A 的精确 McNemar、4,000 次配对 bootstrap、分阶段组信号、健康诊断及 PNG/PDF。
+- 报告位置：`docs/results_2026-10-28_data_night.md`。目前明确标为等待，成功后原子替换为最终统计报告。
+- **实时状态**：`results/data_night_analysis_status.json`；收尾日志 `logs/data_night_finish.log`，
+  错误日志 `logs/data_night_finish.err.log`；**统计全部成功**的标记为 `logs/data_night_analysis.DONE`。
+  原队列 DONE 仅表示队列走完，不表示所有实验都成功。
+- 新增 `src/aha/data_night.py`、`scripts/analyze_data_night.py`、`scripts/finish_data_night.sh`、
+  `tests/test_data_night_analysis.py`。Windows 全套 **107 passed, 2 skipped**；WSL 全套 **109 passed**。
+  其中包含模拟完整 500 步 / 1,319 题的报告、图表、状态和失败路径验证。独立代码审查未发现需修复项。
+- 用真实旧结果复核：fixed 全对组 45.4%；lr2e5 对 fixed 的分歧题 95/81、McNemar p=0.32714，
+  与旧报告一致。A/B 的真实结果尚未产生，不能提前下结论。
+
+下文是 00:40 的原始交接快照；当前状态以以上记录及状态 JSON 为准。
+
 ## 一句话现状
 
 Qwen2.5-3B-Instruct 在 RTX 3060 上用 GRPO 训 GSM8K。最好的稳定配置是 `configs/qwen2.5-3b_3060_fixed.yaml`，GSM8K test **77.3%**

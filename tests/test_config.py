@@ -79,3 +79,12 @@ def test_dump_roundtrip(tmp_path):
     with open(tmp_path / "out.yaml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     assert config_from_dict(data) == cfg
+
+
+def test_use_liger_loss_passthrough():
+    from aha.train import grpo_kwargs
+
+    cfg = ExperimentConfig()
+    assert "use_liger_loss" not in grpo_kwargs(cfg)
+    cfg.train.use_liger_loss = True
+    assert grpo_kwargs(cfg)["use_liger_loss"] is True

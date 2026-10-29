@@ -1,137 +1,138 @@
 # Chasing the "Aha Moment"
 
-**A Review and Implementation of Reinforcement Learning in the Post-Training of LLMs**
+**GRPO post-training experiments: reward hacking, reasoning collapse, and a revised reward setup.**
 
-Course project (COMP 514, Rice University) by Ryan Li, Serena You, Yuanyuan Zhu, and Diwesh Chaurasia.
+This repository started as a COMP 514 course project at Rice University by Ryan Li,
+Serena You, Yuanyuan Zhu, and Diwesh Chaurasia. It now contains a Python training and
+analysis pipeline for Qwen2.5-3B-Instruct on a single RTX 3060, alongside the original
+Llama 3.1-8B Colab notebooks and course report.
 
-We review RL-based post-training methods for LLMs (SFT, RLHF, DPO, GRPO) and train
-Llama 3.1-8B-Instruct with **GRPO** on GSM8K under a single-GPU budget (Colab T4, 4-bit + LoRA),
-using handcrafted reward functions, including a length-based term that rewards longer reasoning
-when the answer is wrong, to probe whether reward shaping can elicit "Aha Moment"-like behavior.
+## What we observed
 
-## Results
+In the first 500-step GRPO run on GSM8K, total reward rose while training correctness
+fell and responses became much shorter. Valid XML increasingly enclosed incorrect
+or nearly empty reasoning. A revised configuration recovered performance.
 
-| Metric (GSM8K test, 1,319 problems) | GRPO (base reward) | GRPO + reward shaping |
-|---|---|---|
-| Accuracy | 0.8256 | **0.8500** |
-| XML parse rate | 1.0000 | 0.9980 |
-| Full `<reasoning>/<answer>` format | 0.0000 | **0.2300** |
+| Qwen2.5-3B-Instruct | GSM8K test accuracy | Mean output tokens |
+|---|---:|---:|
+| Instruct, no training | 62.1% | 254 |
+| SFT, one epoch | 67.6% | 105 |
+| GRPO base reward, step 200 | 74.5% | 138 |
+| GRPO base reward, step 500 | 56.9% | 82 |
+| **GRPO revised setup, step 500** | **77.3%** | 241 |
 
-On the combined AIME 2024 + 2025 set (60 problems) both models score 0, while format
-consistency still improves with reward shaping. Our reading: at the 8B scale GRPO makes
-reasoning more structured and consistent but does not add new mathematical capability.
-See the report for details.
+All rows use the full 1,319-problem test set. Results are single-seed comparisons;
+several fixes were combined. Training length is not a measure of reasoning quality.
+The original 8B report describes a different experiment and should be read separately.
+
+![Original 500-step GRPO training curves](report/img/curves/qwen3b_base_grpo.png)
+
+The revised setup lowers format bonuses, gates them on at least 30 reasoning words,
+restores KL regularization, uses Dr. GRPO normalization, and repairs the strict-format
+checker. The gate discourages empty responses; it does not verify mathematical reasoning.
+
+- **[Reward-hacking case study and real outputs](docs/reward_hacking.md)** (English).
+- [Original diagnosis and fixes](docs/results_2026-10-26_grpo_vs_sft.md) (Chinese).
+- [One-variable ablations](docs/results_2026-10-27_overnight_queue.md): no tested knob significantly improved the revised baseline.
+- [Difficulty filtering and format-gate follow-up](docs/results_2026-10-28_data_night.md): no significant improvement over the revised baseline.
+- [Four-model output comparison](docs/examples_gsm8k_four_models.md).
 
 ## Repository layout
 
-```
-.
-├── src/aha/                 # importable package (no GPU needed to import or test)
-│   ├── config.py            #   YAML configs with _base_ inheritance + dotted overrides
-│   ├── prompts.py           #   system prompt / XML format
-│   ├── parsing.py           #   answer extraction, numeric normalisation
-│   ├── data.py              #   GSM8K / MATH train; GSM8K-test / AIME24 / AIME25 / MATH-500 eval
-│   ├── rewards.py           #   5 base rewards + length-based reward shaping (R_len)
-│   ├── model.py             #   Unsloth 4-bit + LoRA (+ vLLM) loading
-│   ├── train.py             #   TRL GRPOTrainer wiring
-│   └── evaluate.py          #   batched vLLM eval -> metrics.json / predictions.jsonl
-├── scripts/
-│   ├── train.py             # GRPO:  python scripts/train.py --config configs/<name>.yaml [--set k=v ...]
-│   ├── sft.py               # SFT baseline on gold GSM8K solutions (same model + LoRA)
-│   ├── eval.py              # python scripts/eval.py --config configs/<name>.yaml [--no-lora] [--set k=v ...]
-│   ├── plot_curves.py       # loss / reward / completion-length ... figures (PNG + PDF) from a run dir
-│   ├── compare_results.py   # Markdown table over results/<run>/<dataset>/metrics.json
-│   ├── run_comparison.sh    # SFT -> GRPO -> eval instruct/SFT/GRPO, end to end
-│   ├── check_env.py         # GPU + package versions
-│   └── setup_wsl.sh         # one-shot venv + pinned install for WSL2 / Linux
-├── configs/
-│   ├── base.yaml            # shared defaults (report Table 1 hyper-parameters)
-│   ├── qwen2.5-3b_3060.yaml         # RTX 3060 12 GB, base reward
-│   ├── qwen2.5-3b_3060_shaped.yaml  # RTX 3060 12 GB, + length reward shaping
-│   ├── llama3.2-3b_3060.yaml        # same-family 3B alternative
-│   ├── qwen2.5-3b_3060_sft.yaml     # SFT baseline for the GRPO-vs-SFT comparison
-│   ├── llama3.1-8b_t4.yaml          # original Colab/T4 run
-│   └── smoke.yaml                   # 2-step end-to-end check
-├── tests/                   # CPU-only unit tests (pytest)
-├── docs/
-│   └── model_and_data_selection.md  # 3060 model / data choices (中文)
-├── notebooks/colab/         # original Colab notebooks, kept for reference
-└── report/                  # NeurIPS-style report source + PDF
+```text
+src/aha/             Python package: configs, data, rewards, training, evaluation, diagnostics
+src/aha/kernels/     Optional Triton kernels; disabled by default
+scripts/             Training, SFT, evaluation, plotting, and experiment runners
+configs/             YAML experiment configurations and ablations
+bench/               GPU microbenchmarks
+tests/              CPU tests and optional GPU tests
+docs/               Analyses, real examples, experiment plans, and kernel notes
+notebooks/colab/    Original .ipynb files, archived unchanged
+report/             Original course report and current experiment figures
 ```
 
-## Quick start (WSL2 Ubuntu or Linux with an NVIDIA GPU)
+## CPU setup and tests
+
+Python 3.10+ is required. Parsing, reward calculations, configuration, diagnostics,
+and plots can be tested without downloading a model or installing the GPU stack.
 
 ```bash
-bash scripts/setup_wsl.sh          # creates .venv, installs unsloth / vllm / trl (pinned)
+python -m venv .venv
+# Linux / macOS: source .venv/bin/activate
+# PowerShell:   .venv/Scripts/Activate.ps1
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
+
+GPU-specific tests skip when their dependencies or hardware are unavailable.
+
+## Training on Linux or WSL2
+
+The training stack requires an NVIDIA GPU. The 3B configurations target a 12 GB
+RTX 3060; the original 8B / T4 configuration needs more VRAM. See
+[model and data selection](docs/model_and_data_selection.md).
+
+```bash
+bash scripts/setup_wsl.sh
 source ~/.venvs/aha/bin/activate
 python scripts/check_env.py
 
-python scripts/train.py --config configs/smoke.yaml           # 2 steps, verifies the pipeline
-python scripts/train.py --config configs/qwen2.5-3b_3060.yaml  # base reward
-python scripts/train.py --config configs/qwen2.5-3b_3060_shaped.yaml  # + length reward
+# Two-step pipeline smoke run
+python scripts/train.py --config configs/smoke.yaml
 
-# evaluate the instruct baseline, then a trained adapter
-python scripts/eval.py --config configs/qwen2.5-3b_3060.yaml --set eval.lora_path=null
-python scripts/eval.py --config configs/qwen2.5-3b_3060.yaml \
-    --set eval.lora_path=outputs/qwen3b_base/lora "eval.datasets=[gsm8k_test, math500, aime2024, aime2025]"
+# Original reward setup, then the revised configuration
+python scripts/train.py --config configs/qwen2.5-3b_3060.yaml
+python scripts/train.py --config configs/qwen2.5-3b_3060_fixed.yaml
 ```
 
-Any config key can be overridden on the command line with `--set section.key=value`
-(values are parsed as YAML). Results land in `results/<run_name>/<dataset>/`.
+The setup script creates a virtual environment on the Linux filesystem at
+`~/.venvs/aha` by default. It pins `vllm==0.10.2`, `transformers==4.56.2`, and
+`trl==0.22.2`; Unsloth is installed by the script. The recorded 3060 runs used
+Unsloth 2026.10.8. GPU package compatibility can vary outside that recorded stack.
 
-### GRPO vs SFT comparison and training curves
+### Evaluate and inspect a run
 
 ```bash
-nohup bash scripts/run_comparison.sh > logs/comparison.log 2>&1 &   # SFT (~0.5 h) + GRPO (~3 h) + 3 evals (~2 h)
-python scripts/compare_results.py qwen3b_instruct qwen3b_sft qwen3b_base
-python scripts/plot_curves.py outputs/qwen3b_base outputs/qwen3b_sft --out report/img/curves
+# Untouched instruct baseline
+python scripts/eval.py --config configs/qwen2.5-3b_3060.yaml --no-lora \
+    --set run_name=qwen3b_instruct eval.datasets=[gsm8k_test]
+
+# Revised adapter (run training first)
+python scripts/eval.py --config configs/qwen2.5-3b_3060_fixed.yaml \
+    --set eval.lora_path=outputs/qwen3b_fixed/lora eval.datasets=[gsm8k_test]
+
+python scripts/plot_curves.py outputs/qwen3b_base outputs/qwen3b_fixed --out report/img/curves
+python scripts/analyze_hacking.py qwen3b_base qwen3b_fixed --out results/hacking.md
+python scripts/compare_results.py qwen3b_instruct qwen3b_sft qwen3b_base qwen3b_fixed
 ```
 
-Every run writes `train_log.jsonl` (live, one line per logging step) and `log_history.json`
-(at the end) into its `output_dir`; the plot script renders total reward, reward components,
-loss, completion length, KL, reward std and more as PNG + PDF for the report.
+Use `--set section.key=value` for YAML-parsed overrides. Training writes
+`outputs/<run>/train_log.jsonl`, checkpoints, and a final adapter. Evaluation writes
+`results/<run>/<dataset>/metrics.json` and `predictions.jsonl`. Those generated
+outputs, raw logs, caches, and model weights are excluded from Git. Curated analyses,
+examples, and report figures are included. To rerun a diagnostic that reads raw logs,
+first generate the corresponding training/evaluation outputs locally.
 
-Unit tests run anywhere, no GPU or model download:
+### Optional GPU kernel experiments
 
-```bash
-pip install -e ".[dev]" && pytest
-```
+The integrated kernel work includes NF4 decode GEMM, fp16-accumulate GEMM benchmarks,
+and profiling. The custom NF4 path is **off by default** and requires a compatible
+CUDA / Triton environment. Enable it with `AHA_TRITON_NF4=1` for the training/evaluation
+scripts. Read the [kernel overview](docs/kernels/README.md) and
+[measured results](docs/results_2026-10-27_kernels.md) before using it.
 
-## Results on the 3060 (2026-10-26)
+## Original notebooks and report
 
-| GSM8K test accuracy (1,319) | Instruct | SFT (1 epoch) | GRPO base reward, 500 steps | GRPO base, best ckpt (200) | GRPO fixed config, 500 steps |
-|---|---|---|---|---|---|
-| Qwen2.5-3B-Instruct, 4-bit + LoRA | 0.621 | 0.676 | 0.569 | 0.745 | **0.773** |
-
-The base-reward GRPO run reward-hacks: format rewards rise while correctness falls and completions
-shrink to ~80 tokens. `configs/qwen2.5-3b_3060_fixed.yaml` (KL beta 0.04, Dr. GRPO loss, format
-rewards halved and gated on a non-empty reasoning block, fixed strict regex) removes the collapse and
-plateaus at 75-77% from step 250 on. Analysis, causes, fixes and the GPU bottleneck profile are in [docs/results_2026-10-26_grpo_vs_sft.md](docs/results_2026-10-26_grpo_vs_sft.md) (中文).
-
-## Hardware notes
-
-- **RTX 3060 (12 GB):** use the 3B configs. The 8B configuration needs roughly 13 GB because
-  vLLM is co-located with the trainer and does not fit. See
-  [docs/model_and_data_selection.md](docs/model_and_data_selection.md) for the memory budget,
-  model comparison and recommended experiment order.
-- **Colab T4 (15 GB):** `configs/llama3.1-8b_t4.yaml` reproduces the original notebooks
-  (`unsloth/meta-Llama-3.1-8B-Instruct`, 4-bit, rank-32 LoRA, 250 steps, 6 generations,
-  256/768 prompt/completion tokens).
-- Unsloth + vLLM require Linux (WSL2 on Windows). Pinned versions: `vllm==0.10.2`,
-  `transformers==4.56.2`, `trl==0.22.2`. Verified on the 3060 under WSL2 with Unsloth 2026.10.8,
-  torch 2.8.0+cu128: the 3B configs run at about 17-21 s per step with 6 generations (standard gradient
-  checkpointing; Unsloth's CPU-offload variant is ~35% slower under WSL2), so 500 steps take
-  roughly 2.5-3 hours. The model download is 2.3 GB.
-- vLLM standby mode is off by default (`UNSLOTH_VLLM_STANDBY=0`): current Unsloth refuses it on
-  vLLM 0.10.x. Upgrade to `vllm>=0.11.2` before turning it on.
-
-## Building the report
+All four original notebooks are preserved in [`notebooks/colab/`](notebooks/colab/).
+They document the earlier Llama 3.1-8B / T4 experiments and are no longer the primary
+entry points for local runs. The original NeurIPS-style course report remains in
+[`report/`](report/).
 
 ```bash
 cd report
-tectonic main.tex        # or: pdflatex + bibtex + pdflatex x2
+tectonic main.tex
 ```
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[MIT](LICENSE).

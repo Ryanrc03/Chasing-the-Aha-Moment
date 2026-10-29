@@ -45,3 +45,19 @@
 - 用 pass@8 量天花板。
 
 命令：`nohup bash scripts/run_data_night.sh > logs/data_night.log 2>&1 &`
+
+## 自动收尾（00:50 接管补充）
+
+现有队列继续运行；`scripts/finish_data_night.sh 2948` 已由 Windows 隐藏的独立 WSL 宿主启动。
+等待队列结束后运行 CPU 分析，不重复训练，也不修改正在执行的 `run_data_night.sh` 或 `run_queue.sh`。
+
+`scripts/analyze_data_night.py` 核验三组完整 500 步、最终适配器和相同 1,319 题后，按 idx/gold 配对，
+计算双侧精确 McNemar 与固定 seed=42 的 4,000 次配对 bootstrap，并生成结果页、统计 JSON、健康诊断和图。
+每 100 步统计组信号；明确区分 B 的格式门控 correctness 与 A/fixed 的原始 correctness。
+
+输出报告为 `docs/results_2026-10-28_data_night.md`；状态见 `results/data_night_analysis_status.json`，
+只有 `logs/data_night_analysis.DONE` 表示收尾全部成功。缺失训练/评测结果会记录 failed 并保留等待页，
+不会把缺项统计为零或声称实验成功。
+
+解释时保留单 seed 限制；A 缺少同规模随机子集对照，B 同时改变格式奖励和 correctness 门槛。
+主比较仍只有 A 对 fixed、B 对 A，报告未校正 p 值，显著结果需复跑。

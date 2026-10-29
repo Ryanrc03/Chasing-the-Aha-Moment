@@ -29,3 +29,17 @@ results/
 unsloth_compiled_cache/
 grpo_trainer_lora_model/
 logs/
+
+# Local agent workspaces and environment secrets
+.claude/
+.codex/
+.superpowers/
+.env
+.env.*
+!.env.example
+
+# Model weights, checkpoints, and test artifacts
+*.safetensors
+*.pt
+.coverage
+htmlcov/

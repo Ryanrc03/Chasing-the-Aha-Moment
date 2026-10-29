@@ -17,10 +17,12 @@
 所有 GPU 命令通过 WSL 里的包装脚本执行（Task 1 创建）。从 Windows 侧的 Git Bash 调用：
 
 ```bash
-wsl -d Ubuntu -- bash /mnt/d/sideProjects/Chasing-the-Aha-Moment/.claude/worktrees/gpu-kernels/scripts/wsl_env.sh <command...>
+wsl -d Ubuntu -- bash -lc "bash /mnt/d/sideProjects/Chasing-the-Aha-Moment/.claude/worktrees/gpu-kernels/scripts/wsl_env.sh <command...>"
 ```
 
-下文把这一长串简写为 `$KERN <command...>`；执行时要写全。不要把 `$VAR` 放进 `wsl -- bash -lc '...'` 的引号里（外层 Git Bash 会先展开），包装脚本就是为了绕开这个问题。
+下文把这一长串简写为 `$KERN <command...>`；执行时要写全。两个 Git Bash 陷阱：裸的 `/mnt/...` 参数会被 MSYS 改写成
+`C:/Program Files/Git/mnt/...`，所以路径必须放在 `bash -lc "..."` 的引号里；`$VAR` 放进引号会被外层 Git Bash 先展开，
+包装脚本就是为了不在命令行里写变量。
 
 GPU 任务前先确认显卡空闲（Windows 侧的 miniconda `rec` 进程会占 4 GB）：
 
@@ -311,8 +313,8 @@ def test_reference_matches_bitsandbytes():
     packed, qs = F.quantize_4bit(W, blocksize=64, quant_type="nf4", compress_statistics=True)
     assert qs.nested
     ours = dequant_nf4_reference(packed, resolve_absmax(qs), N, K)
-    theirs = F.dequantize_4bit(packed, qs).float()
-    assert torch.allclose(ours, theirs, atol=1e-6, rtol=1e-5)
+    theirs = F.dequantize_4bit(packed, qs).float()  # bnb returns the quant state's dtype (bf16)
+    assert ((ours - theirs).abs() <= theirs.abs() * 4e-3 + 1e-6).all()  # within bf16 rounding
 ```
 
 - [ ] **Step 2: 跑测试确认失败**

@@ -42,6 +42,8 @@ def grpo_kwargs(cfg: ExperimentConfig) -> dict:
         kwargs["loss_type"] = t.loss_type
     if t.scale_rewards is not None:
         kwargs["scale_rewards"] = t.scale_rewards
+    if t.use_liger_loss is not None:
+        kwargs["use_liger_loss"] = t.use_liger_loss
     return kwargs
 
 

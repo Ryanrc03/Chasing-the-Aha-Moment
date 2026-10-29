@@ -35,7 +35,8 @@ from aha.profiling import (  # noqa: E402
 )
 
 
-def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, completion_len: int, out: Path):
+def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, completion_len: int, out: Path,
+                     stack: bool = False):
     import torch
     from torch.profiler import ProfilerActivity, profile
 
@@ -61,7 +62,8 @@ def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, complet
         step()
     torch.cuda.synchronize()
     t0 = time.time()
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=False) as prof:
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+                 record_shapes=stack, with_stack=stack) as prof:
         step()
         torch.cuda.synchronize()
     wall = time.time() - t0
@@ -70,6 +72,16 @@ def profile_training(cfg, model, tokenizer, n_seq: int, prompt_len: int, complet
     # kernels they launch, which double counts; take GPU kernel events from the chrome trace.
     prof.export_chrome_trace(str(out / "train_trace.json"))
     leaf = kernels_from_chrome_trace(out / "train_trace.json")
+    if stack:
+        from aha.profiling import attribute_kernels, render_attribution
+
+        rows = attribute_kernels(out / "train_trace.json")
+        attribution_md = render_attribution(rows, total_us=sum(us for _, us in leaf))
+        Path("docs/kernels").mkdir(parents=True, exist_ok=True)
+        Path("docs/kernels/attribution.md").write_text(
+            "# fill / copy / cast kernels in one training step, attributed to code\n\n" + attribution_md,
+            encoding="utf-8")
+        print(attribution_md)
     agg = aggregate(leaf)
     params = sum(p.numel() for p in model.parameters())
     roof = train_roofline(params, n_seq * total_len, wall)
@@ -152,6 +164,7 @@ def main() -> None:
     parser.add_argument("--completion-len", type=int, default=400)
     parser.add_argument("--decode-tokens", type=int, default=256)
     parser.add_argument("--skip-decode", action="store_true")
+    parser.add_argument("--stack", action="store_true", help="record Python stacks and write docs/kernels/attribution.md")
     args = parser.parse_args()
 
     out = Path(args.out)
@@ -162,7 +175,7 @@ def main() -> None:
 
     sections = [f"# GPU profile: {cfg.model.name} on {__import__('torch').cuda.get_device_name()}\n"]
     sections.append(profile_training(cfg, model, tokenizer, cfg.train.num_generations,
-                                     args.prompt_len, args.completion_len, out))
+                                     args.prompt_len, args.completion_len, out, stack=args.stack))
     if not args.skip_decode and cfg.model.fast_inference:
         sections.append(profile_decode(cfg, model, tokenizer, cfg.train.num_generations,
                                        args.decode_tokens, out))

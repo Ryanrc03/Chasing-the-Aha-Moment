@@ -36,6 +36,13 @@ def make_jsonl_callback(output_dir: str | Path):
             if not logs:
                 return
             record = {"step": state.global_step, "time": time.time(), **logs}
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    record["gpu_peak_gb"] = torch.cuda.max_memory_allocated() / 2**30
+            except Exception:  # noqa: BLE001 - logging must never break training
+                pass
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record) + "\n")
 
