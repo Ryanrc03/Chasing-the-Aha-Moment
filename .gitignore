@@ -43,3 +43,5 @@ logs/
 *.pt
 .coverage
 htmlcov/
+build/
+dist/

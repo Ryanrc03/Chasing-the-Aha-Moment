@@ -13,8 +13,9 @@ Keep source worktrees and their generated model artifacts in place.
   the seven pending analysis/source/test documents and their report figures.
 - [x] Refresh the root README, explain the notebook archive, publish a concise English
   reward-hacking case study, and exclude agent workspaces and model artifacts.
-- [ ] Run the full CPU suite, validate notebook preservation and document links, review
-  the publication contents, fast-forward main, push without force, and verify the remote SHA.
+- [x] Run the full CPU suite, validate notebook preservation and document links, and review
+  the publication contents. Deliver the reviewed snapshot by fast-forwarding main,
+  pushing without force, and verifying the remote SHA.
 
 ## Verification and review focus
 
@@ -33,3 +34,10 @@ Integration finding: the optional kernel tests imported PyTorch unconditionally,
 so the documented CPU-only developer setup failed at collection. The initial full
 suite reproduced both errors; dependency-aware skips were added to those existing
 test modules before rerunning the suite. No kernel implementation was changed.
+
+Verification: 114 tests passed, 4 skipped for unavailable optional dependencies;
+all four notebook Git blobs match the original main revision; refreshed documentation
+links resolve; ten shell scripts passed `bash -n`; the Python wheel built successfully.
+A fresh read-only publication review found no Critical or Important issues. Its
+historical-parser caveat was added to README. GPU numerical/performance behavior was
+not rerun; this integration preserves the existing opt-in implementation and reports.

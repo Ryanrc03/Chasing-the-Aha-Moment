@@ -80,10 +80,14 @@ python scripts/check_env.py
 # Two-step pipeline smoke run
 python scripts/train.py --config configs/smoke.yaml
 
-# Original reward setup, then the revised configuration
+# Base configuration, then the revised configuration
 python scripts/train.py --config configs/qwen2.5-3b_3060.yaml
 python scripts/train.py --config configs/qwen2.5-3b_3060_fixed.yaml
 ```
+
+The historical first run predates the shared strict-format checker repair. Both
+commands above use the current parser, so the base configuration alone does not
+exactly replay that historical checker bug.
 
 The setup script creates a virtual environment on the Linux filesystem at
 `~/.venvs/aha` by default. It pins `vllm==0.10.2`, `transformers==4.56.2`, and
